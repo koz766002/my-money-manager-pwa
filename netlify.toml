@@ -1,0 +1,17 @@
+# netlify.toml
+
+[build]
+  # For a static site, no build command is strictly needed.
+  # Netlify might expect a command, so a simple echo works.
+  command = "echo 'No build step required.'"
+
+  # The directory where your built site files are located.
+  # For a simple static site, this is usually the root directory ('.')
+  publish = "."
+
+# Redirect all paths to index.html to handle client-side routing (important for SPAs)
+# Even though this is plain HTML/JS, this redirect is good practice for PWA deployments.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
