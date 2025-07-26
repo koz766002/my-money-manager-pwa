@@ -4,15 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Money Manager</title>
-    <!-- PWA Manifest Link -->
-    <link rel="manifest" href="manifest.json">
-    <!-- Apple Touch Icon for iOS -->
-    <link rel="apple-touch-icon" href="icon-512x512.png">
-    <!-- Theme Color -->
-    <meta name="theme-color" content="#4CAF50">
 
-    <!-- External CSS Libraries -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- PWA Icons -->
+    <!-- Ensure you have these icons in the /icons folder -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="shortcut icon" href="/icons/favicon.ico">
+
+    <!-- PWA Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('ServiceWorker registration failed: ', error);
+                    });
+            });
+        }
+    </script>
 
     <style>
         /* --- Color Palette and Typography --- */
@@ -71,6 +87,20 @@
             opacity: 0;
             visibility: hidden;
             transition: opacity var(--transition-medium), visibility var(--transition-medium);
+            overflow: hidden; /* Crucial for backdrop-filter to work correctly */
+        }
+
+        /* Add blur to the lock screen background */
+        #lock-screen-overlay::before {
+            content: '';
+            position: absolute;
+            top: -5px; /* Extend slightly to catch blur edges */
+            left: -5px;
+            right: -5px;
+            bottom: -5px;
+            background: inherit; /* Inherit the modal background */
+            filter: blur(10px); /* Apply the blur */
+            z-index: -1; /* Place it behind the content */
         }
 
         #lock-screen-overlay.visible {
@@ -79,6 +109,8 @@
         }
 
         #lock-screen-content {
+            position: relative; /* Ensure it's above the pseudo-element */
+            z-index: 1; /* Place it above the blur */
             text-align: center;
             background-color: rgba(255, 255, 255, 0.05); /* Subtle translucent background */
             padding: 40px 50px; /* Slightly more padding */
@@ -161,6 +193,12 @@
             min-height: 20px;
             margin-top: 10px; /* Space above error message */
             font-size: 1.05em;
+        }
+
+        #lock-screen-footer {
+            margin-top: 30px;
+            font-size: 0.9em;
+            color: rgba(255, 255, 255, 0.7);
         }
 
         /* --- Main Layout and Navigation --- */
@@ -300,6 +338,13 @@
             color: var(--primary);
             font-weight: 600;
             font-size: 24px;
+        }
+
+        .form-section h3 {
+            margin-bottom: 20px;
+            color: var(--primary);
+            font-weight: 600;
+            font-size: 20px;
         }
 
         .form-group {
@@ -1198,7 +1243,10 @@
             }
         }
     </style>
-    <!-- External JS Libraries -->
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <!-- Libraries for Excel and PDF export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -1235,6 +1283,7 @@
                     <button onclick="handleLockScreenInput('delete')" class="key-delete">DEL</button>
                 </div>
             </div>
+            <div id="lock-screen-footer">MKT Computer & Mobile Services</div>
         </div>
     </div>
 
@@ -1436,7 +1485,7 @@
             </div>
 
             <div class="summary-section">
-                <h2 onclick="toggleTransactionSummary()">Daily Summaries <span class="arrow">&#9660;</span></h2>
+                <h2 onclick="updateSummariesBasedOnCurrentView(); toggleExpand(this.parentElement)">Daily Summaries <span class="arrow">&#9660;</span></h2>
                 <div class="summary-list">
                     <div class="summary-item">
                         <span class="summary-label">E-Money Balance Change (Today):</span>
@@ -1524,7 +1573,7 @@
             </div>
 
             <div class="summary-section">
-                <h2 onclick="toggleDailyMoneySummary()">Daily Summary <span class="arrow">&#9660;</span></h2>
+                <h2 onclick="updateSummariesBasedOnCurrentView(); toggleExpand(this.parentElement)">Daily Summary <span class="arrow">&#9660;</span></h2>
                 <div class="summary-list">
                     <div class="summary-item">
                         <span class="summary-label">E-Money In:</span>
@@ -1744,7 +1793,6 @@
         </div>
     </div>
 
-    <!-- JavaScript -->
     <script>
         // --- GLOBAL STATE VARIABLES ---
         let transactions = [];
@@ -1772,6 +1820,7 @@
         let settingsPIN = '0000'; // Default initial PIN
         let isScreenLockEnabled = false; // Flag for whether screen lock is enabled in settings
         let permanentlyLocked = false; // Flag for permanent lockout state
+        let hideSuggestionsOnClickOutside = null; // Handler for closing debt suggestions
 
         // --- INITIALIZATION FUNCTIONS ---
 
@@ -2017,7 +2066,7 @@
             }
         }
 
-        // Formats input field value to have comma separators and at most two decimal places
+        // Formats a number input field value to have comma separators and at most two decimal places
         function formatInputAmount(inputElement) {
             let value = inputElement.value.replace(/,/g, '');
             let cleanedValue = '';
@@ -2052,7 +2101,7 @@
             inputElement.value = formattedValue + decimalPart;
         }
 
-        // Sets the current date and time to relevant input fields
+        // Sets the current date and time to relevant input fields if they are empty
         function updateDateTimeFields() {
             const now = new Date();
             const year = now.getFullYear();
@@ -2084,21 +2133,21 @@
             toast.textContent = message;
             document.body.appendChild(toast);
 
-            void toast.offsetWidth;
+            void toast.offsetWidth; // Trigger reflow
             toast.classList.add('show');
 
             setTimeout(() => {
                 toast.classList.remove('show');
                 setTimeout(() => {
                     toast.remove();
-                }, 300);
-            }, 3000);
+                }, 300); // Match transition duration
+            }, 3000); // Show duration
         }
 
-        // Adds a new option to a specified select element
+        // Adds a new option to a specified select element if it doesn't exist
         function addOptionToSelect(selectId, optionValue) {
             const selectElement = document.getElementById(selectId);
-            const optionExists = Array.from(selectElement.options).some(option => option.value === optionValue);
+            const optionExists = Array.from(selectElement.options).some(option => option.value.toLowerCase() === optionValue.toLowerCase());
             if (!optionExists && optionValue && optionValue.trim() !== '' && optionValue.trim().toLowerCase() !== 'other') {
                 const newOption = document.createElement('option');
                 newOption.value = optionValue.trim();
@@ -2163,12 +2212,14 @@
             } catch (e) {
                 console.error("Error parsing data from localStorage:", e);
                 showToast("Error reading data from local storage", "error");
+                // Reset to default empty states if parsing fails
                 transactions = []; moneyRecords = []; openingBalances = { eMoney: 0, cash: 0 };
                 savedOtherTransactionTypes = {}; savedOtherMoneyTypes = {}; tempCommissionData = {}; debts = [];
                 expenseEntries = []; savedExpenseCategories = {};
                 return;
             }
 
+            // Data validation and fallback to defaults
             if (!Array.isArray(transactions)) transactions = [];
             if (!Array.isArray(moneyRecords)) moneyRecords = [];
             if (typeof openingBalances !== 'object' || openingBalances === null) openingBalances = { eMoney: 0, cash: 0 };
@@ -2191,16 +2242,18 @@
             const transactionTypeSelect = document.getElementById('transaction-type');
             const moneyTypeSelect = document.getElementById('money-type');
 
-            const existingTransactionTypes = Array.from(transactionTypeSelect.options).map(opt => opt.value);
+            // Populate Transaction Types
+            const existingTransactionTypes = Array.from(transactionTypeSelect.options).map(opt => opt.value.toLowerCase());
             for (const type in savedOtherTransactionTypes) {
-                if (Object.hasOwnProperty.call(savedOtherTransactionTypes, type) && !existingTransactionTypes.includes(type) && type.toLowerCase() !== 'other') {
+                if (Object.hasOwnProperty.call(savedOtherTransactionTypes, type) && !existingTransactionTypes.includes(type.toLowerCase()) && type.trim() !== '' && type.toLowerCase() !== 'other') {
                     addOptionToSelect('transaction-type', type);
                 }
             }
 
-            const existingMoneyTypes = Array.from(moneyTypeSelect.options).map(opt => opt.value);
+            // Populate Money Record Types
+            const existingMoneyTypes = Array.from(moneyTypeSelect.options).map(opt => opt.value.toLowerCase());
             for (const type in savedOtherMoneyTypes) {
-                if (Object.hasOwnProperty.call(savedOtherMoneyTypes, type) && !existingMoneyTypes.includes(type) && type.toLowerCase() !== 'other') {
+                if (Object.hasOwnProperty.call(savedOtherMoneyTypes, type) && !existingMoneyTypes.includes(type.toLowerCase()) && type.trim() !== '' && type.toLowerCase() !== 'other') {
                     addOptionToSelect('money-type', type);
                 }
             }
@@ -2218,12 +2271,15 @@
             renderDebts();
             renderExpenseEntries();
 
+            // Event listener for closing debt suggestions when clicking outside
             document.addEventListener('click', function(e) {
                 const transactionItem = e.target.closest('.transaction-item');
                 if (transactionItem) {
+                    // Handle click on transaction item itself (e.g., toggle active state)
                     if (!e.target.closest('.transaction-actions')) {
                         const parentGroupDetails = transactionItem.closest('.group-details');
                         if(parentGroupDetails) {
+                            // Deactivate other items in the same group
                             parentGroupDetails.querySelectorAll('.transaction-item').forEach(item => {
                                 if (item !== transactionItem) {
                                     item.classList.remove('active');
@@ -2233,11 +2289,13 @@
                         transactionItem.classList.toggle('active');
                     }
                 } else {
+                    // Deactivate any active transaction item if click is outside
                     document.querySelectorAll('.transaction-item').forEach(item => {
                         item.classList.remove('active');
                     });
                 }
 
+                // Handle closing debt name suggestions
                 const debtNameInput = document.getElementById('debt-name');
                 const suggestionsContainer = document.getElementById('debt-name-suggestions');
                 if (suggestionsContainer && debtNameInput && !suggestionsContainer.contains(e.target) && !debtNameInput.contains(e.target)) {
@@ -2247,39 +2305,41 @@
                         hideSuggestionsOnClickOutside = null;
                     }
                 }
-                resetLockTimer();
+                resetLockTimer(); // Reset timer on any click
             });
 
+            // Reset lock timer on various interactions
             document.addEventListener('mousemove', resetLockTimer);
             document.addEventListener('mousedown', resetLockTimer);
             document.addEventListener('keydown', resetLockTimer);
             document.addEventListener('touchstart', resetLockTimer);
 
-            toggleCommissionField();
-            updateExpenseCategoryVisibility();
-            updatePaymentMethodVisibility();
+            toggleCommissionField(); // Set initial visibility of commission field
+            updateExpenseCategoryVisibility(); // Set initial visibility of other category input
+            updatePaymentMethodVisibility(); // Set initial visibility of other payment method input
 
             const debtNameInput = document.getElementById('debt-name');
             if (debtNameInput) {
                 debtNameInput.addEventListener('input', handleDebtNameInput);
             }
 
-            populateExpenseCategories();
+            populateExpenseCategories(); // Load existing categories
 
-            if (!isScreenLockEnabled) {
+            if (!isScreenLockEnabled) { // Ensure lock screen is hidden if not enabled
                 hideLockScreen();
             }
         });
 
-        // --- TABSWITCHING LOGIC ---
+        // --- TAB SWITCHING LOGIC ---
         function switchTab(tabId) {
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
 
+            // Activate the clicked tab and its content
             document.querySelector(`.tab[onclick="switchTab('${tabId}')"]`).classList.add('active');
             document.getElementById(tabId).classList.add('active');
 
-            updateSummariesBasedOnCurrentView();
+            updateSummariesBasedOnCurrentView(); // Update summaries when tab changes
         }
 
         // --- OPENING BALANCE TAB FUNCTIONS ---
@@ -2295,7 +2355,7 @@
                 console.error("Error saving opening balances:", e);
                 showToast('Error saving opening balances', 'error');
             }
-            updateSummariesBasedOnCurrentView();
+            updateSummariesBasedOnCurrentView(); // Update balances on screen
         }
 
         // --- BACKUP FUNCTIONS ---
@@ -2325,7 +2385,7 @@
             }
         }
 
-        // Restores application data from the text area
+        // Restores application data from the text area, merging with existing data
         function restoreBackup() {
             if (!confirm('This will merge existing data with the data from the text area. Existing data will be preserved. Continue?')) {
                 return;
@@ -2347,34 +2407,44 @@
                     return;
                 }
 
+                // Validate essential data structures before merging
                 if (backupData.transactions && backupData.moneyRecords && backupData.openingBalances && backupData.debts && backupData.expenseEntries && backupData.savedExpenseCategories) {
+                    // Merge transactions (add new ones, avoid duplicates by ID)
                     const newTransactions = backupData.transactions.filter(bt => !transactions.some(at => at.id === bt.id));
                     transactions = newTransactions.concat(transactions);
 
+                    // Merge money records (add new ones, avoid duplicates based on a combination of fields)
                     const newMoneyRecords = backupData.moneyRecords.filter(bmr => !moneyRecords.some(amr => amr.date === bmr.date && amr.amount === bmr.amount && amr.action === bmr.action));
                     moneyRecords = newMoneyRecords.concat(moneyRecords);
 
+                    // Merge opening balances (take from backup if available)
                     if (backupData.openingBalances) {
                         openingBalances = {
                             eMoney: parseFloat(backupData.openingBalances.eMoney) || openingBalances.eMoney,
                             cash: parseFloat(backupData.openingBalances.cash) || openingBalances.cash
                         };
+                        // Ensure balances are numbers
                         if (isNaN(openingBalances.eMoney)) openingBalances.eMoney = 0;
                         if (isNaN(openingBalances.cash)) openingBalances.cash = 0;
                     }
 
+                    // Merge custom types and temp data (prioritize existing data slightly)
                     savedOtherTransactionTypes = { ...backupData.savedOtherTransactionTypes, ...savedOtherTransactionTypes };
                     savedOtherMoneyTypes = { ...backupData.savedOtherMoneyTypes, ...savedOtherMoneyTypes };
                     tempCommissionData = { ...tempCommissionData, ...backupData.tempCommissionData };
 
+                    // Merge debts (add new ones, avoid duplicates by ID)
                     const newDebts = backupData.debts.filter(bd => !debts.some(ad => ad.id === bd.id));
                     debts = newDebts.concat(debts);
 
+                    // Merge expense entries (add new ones, avoid duplicates by ID)
                     const newExpenseEntries = backupData.expenseEntries.filter(be => !expenseEntries.some(ae => ae.id === be.id));
                     expenseEntries = newExpenseEntries.concat(expenseEntries);
 
+                    // Merge expense categories
                     savedExpenseCategories = { ...backupData.savedExpenseCategories, ...savedExpenseCategories };
 
+                    // Restore settings if present
                     if (backupData.isScreenLockEnabled !== undefined) {
                         isScreenLockEnabled = backupData.isScreenLockEnabled;
                         localStorage.setItem('moneyManager_isScreenLockEnabled', isScreenLockEnabled);
@@ -2385,6 +2455,7 @@
                         localStorage.setItem('moneyManager_appPIN', settingsPIN);
                     }
 
+                    // Save all merged data back to localStorage
                     try {
                         localStorage.setItem('moneyManager_transactions', JSON.stringify(transactions));
                         localStorage.setItem('moneyManager_moneyRecords', JSON.stringify(moneyRecords));
@@ -2396,6 +2467,7 @@
                         localStorage.setItem('moneyManager_expenseEntries', JSON.stringify(expenseEntries));
                         localStorage.setItem('moneyManager_savedExpenseCategories', JSON.stringify(savedExpenseCategories));
 
+                        // Refresh UI elements
                         updateSummariesBasedOnCurrentView();
                         updateTransactionList();
                         updateMoneyList();
@@ -2404,6 +2476,7 @@
                         populateExpenseCategories();
                         renderExpenseEntries();
 
+                        // Update input fields with restored balances
                         document.getElementById('opening-emoney').value = openingBalances.eMoney !== undefined ? formatNumber(openingBalances.eMoney) : '';
                         document.getElementById('opening-cash').value = openingBalances.cash !== undefined ? formatNumber(openingBalances.cash) : '';
 
@@ -2447,26 +2520,27 @@
             document.body.appendChild(link);
             link.click();
 
-            URL.revokeObjectURL(url);
+            URL.revokeObjectURL(url); // Clean up the URL object
             link.remove();
             showToast('Backup file generated!');
         }
 
-        // Restores application data from a selected JSON file
+        // Restores application data from a selected JSON file, merging with existing data
         function restoreFromFile(event) {
             const file = event.target.files[0];
             if (!file) {
-                return;
+                return; // No file selected
             }
 
-            if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+            // Validate file type
+            if (file.type !== 'application/json' && !file.name.toLowerCase().endsWith('.json')) {
                 showToast('Invalid file type. Please select a .json file.', 'error');
-                event.target.value = '';
+                event.target.value = ''; // Clear the file input
                 return;
             }
 
             if (!confirm(`This will merge existing data with the data from "${file.name}". Existing data will be preserved. Continue?`)) {
-                event.target.value = '';
+                event.target.value = ''; // Clear the file input if user cancels
                 return;
             }
 
@@ -2475,13 +2549,17 @@
                 try {
                     const backupData = JSON.parse(e.target.result);
 
+                    // Validate essential data structures before merging
                     if (backupData.transactions && backupData.moneyRecords && backupData.openingBalances && backupData.debts && backupData.expenseEntries && backupData.savedExpenseCategories) {
+                        // Merge transactions
                         const newTransactions = backupData.transactions.filter(bt => !transactions.some(at => at.id === bt.id));
                         transactions = newTransactions.concat(transactions);
 
+                        // Merge money records
                         const newMoneyRecords = backupData.moneyRecords.filter(bmr => !moneyRecords.some(amr => amr.date === bmr.date && amr.amount === bmr.amount && amr.action === bmr.action));
                         moneyRecords = newMoneyRecords.concat(moneyRecords);
 
+                        // Merge opening balances
                         if (backupData.openingBalances) {
                             openingBalances = {
                                 eMoney: parseFloat(backupData.openingBalances.eMoney) || openingBalances.eMoney,
@@ -2491,18 +2569,23 @@
                             if (isNaN(openingBalances.cash)) openingBalances.cash = 0;
                         }
 
+                        // Merge custom types and temp data
                         savedOtherTransactionTypes = { ...backupData.savedOtherTransactionTypes, ...savedOtherTransactionTypes };
                         savedOtherMoneyTypes = { ...backupData.savedOtherMoneyTypes, ...savedOtherMoneyTypes };
                         tempCommissionData = { ...tempCommissionData, ...backupData.tempCommissionData };
 
+                        // Merge debts
                         const newDebts = backupData.debts.filter(bd => !debts.some(ad => ad.id === bd.id));
                         debts = newDebts.concat(debts);
 
+                        // Merge expense entries
                         const newExpenseEntries = backupData.expenseEntries.filter(be => !expenseEntries.some(ae => ae.id === be.id));
                         expenseEntries = newExpenseEntries.concat(expenseEntries);
 
+                        // Merge expense categories
                         savedExpenseCategories = { ...backupData.savedExpenseCategories, ...savedExpenseCategories };
 
+                        // Restore settings
                         if (backupData.isScreenLockEnabled !== undefined) {
                             isScreenLockEnabled = backupData.isScreenLockEnabled;
                             localStorage.setItem('moneyManager_isScreenLockEnabled', isScreenLockEnabled);
@@ -2513,6 +2596,7 @@
                             localStorage.setItem('moneyManager_appPIN', settingsPIN);
                         }
 
+                        // Save all merged data
                         try {
                             localStorage.setItem('moneyManager_transactions', JSON.stringify(transactions));
                             localStorage.setItem('moneyManager_moneyRecords', JSON.stringify(moneyRecords));
@@ -2524,6 +2608,7 @@
                             localStorage.setItem('moneyManager_expenseEntries', JSON.stringify(expenseEntries));
                             localStorage.setItem('moneyManager_savedExpenseCategories', JSON.stringify(savedExpenseCategories));
 
+                            // Refresh UI
                             updateSummariesBasedOnCurrentView();
                             updateTransactionList();
                             updateMoneyList();
@@ -2532,6 +2617,7 @@
                             populateExpenseCategories();
                             renderExpenseEntries();
 
+                            // Update input fields
                             document.getElementById('opening-emoney').value = openingBalances.eMoney !== undefined ? formatNumber(openingBalances.eMoney) : '';
                             document.getElementById('opening-cash').value = openingBalances.cash !== undefined ? formatNumber(openingBalances.cash) : '';
 
@@ -2547,17 +2633,17 @@
                     console.error("Error parsing backup file:", e);
                     showToast('Error reading or parsing backup file', 'error');
                 } finally {
-                    event.target.value = '';
+                    event.target.value = ''; // Clear the file input regardless of success/failure
                 }
             };
 
             reader.onerror = function() {
                 console.error("Error reading file:", reader.error);
                 showToast('Error reading file', 'error');
-                event.target.value = '';
+                event.target.value = ''; // Clear the file input
             };
 
-            reader.readAsText(file);
+            reader.readAsText(file); // Read the file content as text
         }
 
 
@@ -2573,47 +2659,53 @@
                 otherInput.focus();
             } else {
                 otherInput.style.display = 'none';
-                otherInput.value = '';
+                otherInput.value = ''; // Clear the input if 'other' is not selected
             }
-            updateSavedCommissionAndFee();
+            updateSavedCommissionAndFee(); // Recalculate potential commission/fee
         }
 
-        // Attempts to auto-fill commission and fee based on saved data
+        // Attempts to auto-fill commission and fee based on saved data for the current transaction
         function updateSavedCommissionAndFee() {
             const type = document.getElementById('transaction-type').value;
             const typeOtherInput = document.getElementById('transaction-type-other');
             const typeOther = typeOtherInput.value.trim();
-            const effectiveType = (type === 'other' && typeOther) ? typeOther : type;
+            const effectiveType = (type === 'other' && typeOther) ? typeOther : type; // Use custom type if 'other' is selected and filled
 
             const action = document.getElementById('transaction-action').value;
             const amountInput = document.getElementById('transaction-amount');
-            const amount = parseFloat(amountInput.value.replace(/,/g, '')) || 0;
+            const amount = parseFloat(amountInput.value.replace(/,/g, '')) || 0; // Get current amount
 
+            // Only attempt to fill if type, action, and a positive amount are present
             if (effectiveType && action && amount > 0) {
-                const key = `${effectiveType}-${action}-${amount}`;
-                const savedData = tempCommissionData[key];
+                const key = `${effectiveType}-${action}-${amount}`; // Create a unique key
+                const savedData = tempCommissionData[key]; // Look up saved data
 
                 if (savedData) {
+                    // If commission field is empty or zero, fill it from saved data
                     if (document.getElementById('transaction-commission').value === '' || parseFloat(document.getElementById('transaction-commission').value.replace(/,/g, '')) === 0) {
                         document.getElementById('transaction-commission').value = savedData.commission !== undefined && savedData.commission !== null ? formatNumber(savedData.commission) : '';
                     }
+                    // If fee field is empty or zero, fill it from saved data
                     if (document.getElementById('transaction-fee').value === '' || parseFloat(document.getElementById('transaction-fee').value.replace(/,/g, '')) === 0) {
                          document.getElementById('transaction-fee').value = savedData.fee !== undefined && savedData.fee !== null ? formatNumber(savedData.fee) : '';
                     }
                 } else {
+                    // Clear fields if no saved data matches
                     if (document.getElementById('transaction-commission').value === '') document.getElementById('transaction-commission').value = '';
                     if (document.getElementById('transaction-fee').value === '') document.getElementById('transaction-fee').value = '';
                 }
             } else {
+                // Clear fields if required data is missing
                 if (document.getElementById('transaction-commission').value === '') document.getElementById('transaction-commission').value = '';
                 if (document.getElementById('transaction-fee').value === '') document.getElementById('transaction-fee').value = '';
             }
         }
 
-        // Saves commission and fee data associated with a specific transaction type, action, and amount
+        // Saves commission and fee data associated with a specific transaction type, action, and amount for future auto-filling
         function saveCommissionAndFee(type, action, amount, commission, fee) {
             if (type && action && !isNaN(amount) && amount > 0 && !isNaN(commission) && !isNaN(fee)) {
                 const key = `${type}-${action}-${amount}`;
+                // Only save if the data is new or different from what's already stored
                 if (!tempCommissionData[key] || tempCommissionData[key].commission !== commission || tempCommissionData[key].fee !== fee) {
                     tempCommissionData[key] = { commission, fee };
                     try {
@@ -2630,18 +2722,19 @@
             const type = document.getElementById('transaction-type').value;
             const typeOtherInput = document.getElementById('transaction-type-other');
             const typeOther = typeOtherInput.value.trim();
-            const effectiveType = (type === 'other' && typeOther) ? typeOther : type;
+            const effectiveType = (type === 'other' && typeOther) ? typeOther : type; // Use custom type if 'other' is selected and filled
 
             const action = document.getElementById('transaction-action').value;
             const amountStr = document.getElementById('transaction-amount').value;
-            const amount = parseFloat(amountStr.replace(/,/g, ''));
+            const amount = parseFloat(amountStr.replace(/,/g, '')); // Parse amount
 
             const commissionStr = document.getElementById('transaction-commission').value;
-            const commission = commissionStr ? parseFloat(commissionStr.replace(/,/g, '')) : 0;
+            const commission = commissionStr ? parseFloat(commissionStr.replace(/,/g, '')) : 0; // Parse commission, default to 0
 
             const feeStr = document.getElementById('transaction-fee').value;
-            const fee = feeStr ? parseFloat(feeStr.replace(/,/g, '')) : 0;
+            const fee = feeStr ? parseFloat(feeStr.replace(/,/g, '')) : 0; // Parse fee, default to 0
 
+            // Save if all necessary fields are present and valid
             if (effectiveType && action && !isNaN(amount) && amount > 0 && !isNaN(commission) && !isNaN(fee)) {
                 saveCommissionAndFee(effectiveType, action, amount, commission, fee);
             }
@@ -2654,8 +2747,10 @@
             let type = document.getElementById('transaction-type').value;
             const otherInput = document.getElementById('transaction-type-other');
 
-            let effectiveType = type;
-            let finalType = type;
+            let effectiveType = type; // The type to be stored and used for logic
+            let finalType = type;     // The type to be displayed (might be custom)
+
+            // Handle custom transaction types
             if (type === 'other') {
                 const customType = otherInput.value.trim();
                 if (!customType) {
@@ -2664,6 +2759,7 @@
                 }
                 finalType = customType;
                 effectiveType = customType;
+                // Save custom type if it's new
                 if (!savedOtherTransactionTypes[finalType]) {
                     savedOtherTransactionTypes[finalType] = finalType;
                     try {
@@ -2671,7 +2767,7 @@
                     } catch (e) {
                         console.error("Error saving custom transaction type:", e);
                     }
-                    addOptionToSelect('transaction-type', finalType);
+                    addOptionToSelect('transaction-type', finalType); // Add it to the dropdown
                 }
             }
 
@@ -2683,30 +2779,35 @@
             const fee = feeInput.value ? parseFloat(feeInput.value.replace(/,/g, '')) : 0;
 
             let phone = document.getElementById('transaction-phone').value.trim();
-            if (phone) phone = '09' + phone;
+            if (phone) phone = '09' + phone; // Prepend '09' if it's a valid phone number format
             const note = document.getElementById('transaction-note').value.trim();
 
+            // Basic validation
             if (!id) { showToast('Transaction ID is required.', 'error'); return; }
             if (!date) { showToast('Date/Time is required.', 'error'); return; }
-            if (!finalType) { showToast('Transaction Type is required.', 'error'); return; }
+            if (!finalType) { showToast('Transaction Type is required.', 'error'); return; } // Should not happen due to 'other' logic
             if (!action) { showToast('Action is required.', 'error'); return; }
             if (isNaN(amount) || amount <= 0) { showToast('Amount must be a positive number.', 'error'); return; }
             if (isNaN(commission) || commission < 0) { showToast('Commission must be a non-negative number.', 'error'); return; }
             if (isNaN(fee) || fee < 0) { showToast('Fee must be a non-negative number.', 'error'); return; }
 
+            // Check for duplicate transaction ID
             if (transactions.some(t => t.id === id)) {
                 showToast('Transaction ID already exists. Please use a unique ID.', 'error');
                 return;
             }
 
+            // Save commission and fee data for potential auto-fill
             saveCommissionAndFee(effectiveType, action, amount, commission, fee);
 
+            // Create the transaction object
             const transaction = {
                 id, date, type: finalType, action, amount, commission, fee, phone, note
             };
 
-            transactions.unshift(transaction);
+            transactions.unshift(transaction); // Add to the beginning of the array
 
+            // Save updated transactions to localStorage
             try {
                 localStorage.setItem('moneyManager_transactions', JSON.stringify(transactions));
                 showToast('Transaction added successfully!');
@@ -2715,40 +2816,44 @@
                 showToast('Error saving transaction', 'error');
             }
 
-            updateSummariesBasedOnCurrentView();
-            updateTransactionList();
-            clearTransactionForm();
+            updateSummariesBasedOnCurrentView(); // Update summary calculations
+            updateTransactionList(); // Refresh the displayed list
+            clearTransactionForm(); // Clear the form for the next entry
         }
 
         // Clears and resets the transaction form fields
         function clearTransactionForm() {
             document.getElementById('transaction-id').value = '';
-            updateDateTimeFields();
-            document.getElementById('transaction-type').value = 'Wave Money';
-            document.getElementById('transaction-type-other').value = '';
-            document.getElementById('transaction-type-other').style.display = 'none';
-            document.getElementById('transaction-action').value = 'Cash In';
+            updateDateTimeFields(); // Reset date/time to current
+            document.getElementById('transaction-type').value = 'Wave Money'; // Reset to default
+            document.getElementById('transaction-type-other').value = ''; // Clear custom type input
+            document.getElementById('transaction-type-other').style.display = 'none'; // Hide custom type input
+            document.getElementById('transaction-action').value = 'Cash In'; // Reset to default
             document.getElementById('transaction-amount').value = '';
             document.getElementById('transaction-commission').value = '';
             document.getElementById('transaction-fee').value = '';
             document.getElementById('transaction-phone').value = '';
             document.getElementById('transaction-note').value = '';
 
-            updateSavedCommissionAndFee();
+            updateSavedCommissionAndFee(); // Update any auto-fill suggestions
         }
 
-        // Updates the displayed balance figures
+        // Updates the displayed balance figures in the transaction tab
         function updateTransactionTabBalances() {
+            // Get daily changes calculated from transactions
             const dailyEMoneyChangeFromTransactions = parseFloat(document.getElementById('daily-e-money').textContent.replace(/,/g, '')) || 0;
             const dailyCashChangeFromTransactions = parseFloat(document.getElementById('daily-cash').textContent.replace(/,/g, '')) || 0;
 
+            // Get opening balances
             const openingEMoney = parseFloat(openingBalances.eMoney) || 0;
             const openingCash = parseFloat(openingBalances.cash) || 0;
 
+            // Calculate current balances
             const currentEMoneyBalance = openingEMoney + dailyEMoneyChangeFromTransactions;
             const currentCashBalance = openingCash + dailyCashChangeFromTransactions;
             const currentTotalBalance = currentEMoneyBalance + currentCashBalance;
 
+            // Update the UI
             document.getElementById('e-money-balance').textContent = formatNumber(currentEMoneyBalance);
             document.getElementById('cash-balance').textContent = formatNumber(currentCashBalance);
             document.getElementById('total-balance').textContent = formatNumber(currentTotalBalance);
@@ -2757,60 +2862,70 @@
         // Renders the transaction list, grouping transactions by date
         function updateTransactionList(filteredTransactions = null) {
             const listContainer = document.querySelector('#transaction-list .transaction-list-items');
-            const transactionsToShow = filteredTransactions !== null ? filteredTransactions : transactions;
+            listContainer.innerHTML = ''; // Clear existing list
 
-            listContainer.innerHTML = '';
+            const transactionsToShow = filteredTransactions !== null ? filteredTransactions : transactions; // Use filtered list if provided
 
             if (transactionsToShow.length === 0) {
-                listContainer.innerHTML += '<p class="no-data">No transactions found.</p>';
+                listContainer.innerHTML += '<p class="no-data">No transactions found.</p>'; // Display message if no data
                 return;
             }
 
+            // Group transactions by date for better readability
             const groupedTransactions = {};
             transactionsToShow.forEach((transaction, index) => {
+                // Find the original index in the main `transactions` array for editing/deleting
                 const originalIndex = transactions.findIndex(t => t.id === transaction.id && t.date === transaction.date);
 
-                const dateKey = new Date(transaction.date).toISOString().split('T')[0];
+                const dateKey = new Date(transaction.date).toISOString().split('T')[0]; // Get date part for grouping
 
                 if (!groupedTransactions[dateKey]) {
                     groupedTransactions[dateKey] = {
-                        items: [],
-                        details: { emoneyChange: 0, cashChange: 0, totalCommission: 0, totalFee: 0 }
+                        items: [], // Store transactions for this date
+                        details: { emoneyChange: 0, cashChange: 0, totalCommission: 0, totalFee: 0 } // Summary details for the day
                     };
                 }
-                groupedTransactions[dateKey].items.push({ ...transaction, originalIndex: originalIndex });
+                groupedTransactions[dateKey].items.push({ ...transaction, originalIndex: originalIndex }); // Add transaction with its original index
 
+                // Calculate daily summary details from each transaction
                 const amount = parseFloat(transaction.amount);
-                const commission = parseFloat(transaction.commission);
-                const fee = parseFloat(transaction.fee);
+                const commission = parseFloat(transaction.commission) || 0; // Ensure commission is a number
+                const fee = parseFloat(transaction.fee) || 0;           // Ensure fee is a number
 
+                // Adjust E-Money and Cash balances based on transaction action
                 if (transaction.action === 'Cash In') {
-                    groupedTransactions[dateKey].details.emoneyChange -= amount; groupedTransactions[dateKey].details.cashChange += amount;
+                    groupedTransactions[dateKey].details.emoneyChange -= amount; // E-Money decreases
+                    groupedTransactions[dateKey].details.cashChange += amount;   // Cash increases
                 } else if (transaction.action === 'Cash Out') {
-                    groupedTransactions[dateKey].details.emoneyChange += amount; groupedTransactions[dateKey].details.cashChange -= amount;
-                } else if (transaction.action === 'Send Money') {
-                    groupedTransactions[dateKey].details.emoneyChange -= (amount + commission + fee); groupedTransactions[dateKey].details.cashChange += (commission + fee);
+                    groupedTransactions[dateKey].details.emoneyChange += amount; // E-Money increases
+                    groupedTransactions[dateKey].details.cashChange -= amount;   // Cash decreases
+                } else if (
+                    transaction.action === 'Send Money' ||
+                    transaction.action === 'Payment' ||
+                    transaction.action === 'Phone Bill'
+                ) {
+                    groupedTransactions[dateKey].details.emoneyChange -= amount; // Deduct amount from E-Money
                 } else if (transaction.action === 'Received Money') {
-                    groupedTransactions[dateKey].details.emoneyChange += (amount - commission - fee); groupedTransactions[dateKey].details.cashChange -= (commission + fee);
-                } else if (transaction.action === 'Payment') {
-                    groupedTransactions[dateKey].details.emoneyChange -= (amount + commission + fee); groupedTransactions[dateKey].details.cashChange += (commission + fee);
-                } else if (transaction.action === 'Phone Bill') {
-                    groupedTransactions[dateKey].details.emoneyChange -= (amount + commission + fee); groupedTransactions[dateKey].details.cashChange += (commission + fee);
+                    groupedTransactions[dateKey].details.emoneyChange += amount; // Add amount to E-Money
                 }
+                // Accumulate commission and fee earned
                 groupedTransactions[dateKey].details.totalCommission += commission;
                 groupedTransactions[dateKey].details.totalFee += fee;
             });
 
+            // Sort dates in descending order (most recent first)
             const sortedDates = Object.keys(groupedTransactions).sort().reverse();
 
+            // Render each day's group
             for (const dateKey of sortedDates) {
                 const groupData = groupedTransactions[dateKey];
-                const displayDate = new Date(dateKey).toDateString();
+                const displayDate = new Date(dateKey).toDateString(); // Format date for display
                 const summary = groupData.details;
 
                 const groupElement = document.createElement('div');
                 groupElement.className = 'grouped-transaction';
 
+                // Construct HTML for the group header and its items
                 groupElement.innerHTML = `
                     <div class="group-header" onclick="toggleGroup(this.parentElement)">
                         <span>${displayDate}</span>
@@ -2818,16 +2933,17 @@
                     </div>
                     <div class="group-details">
                         ${groupData.items.map(item => {
+                            // Determine amount class for styling (positive/negative)
+                            const amountClass = (item.action === 'Cash In' || item.action === 'Received Money') ? 'positive' : 'negative';
+                            // Generate details HTML (commission, fee, phone, note)
                             let detailsHtml = '';
                             if (item.commission > 0) detailsHtml += `<span class="transaction-info-item"><strong>Comm:</strong> ${formatNumber(item.commission)}</span>`;
                             if (item.fee > 0) detailsHtml += `<span class="transaction-info-item"><strong>Fee:</strong> ${formatNumber(item.fee)}</span>`;
                             if (item.phone) detailsHtml += `<span class="transaction-info-item"><strong>Phone:</strong> ${item.phone}</span>`;
                             if (item.note) {
-                                const truncatedNote = item.note.length > 50 ? item.note.substring(0, 50) + '...' : item.note;
+                                const truncatedNote = item.note.length > 50 ? item.note.substring(0, 50) + '...' : item.note; // Truncate long notes
                                 detailsHtml += `<span class="transaction-info-item"><strong>Note:</strong> ${truncatedNote}</span>`;
                             }
-
-                            const amountClass = (item.action === 'Cash In' || item.action === 'Received Money') ? 'positive' : 'negative';
 
                             return `
                                 <div class="transaction-item">
@@ -2849,7 +2965,7 @@
                         }).join('')}
                     </div>
                 `;
-                listContainer.appendChild(groupElement);
+                listContainer.appendChild(groupElement); // Add the group to the list
             }
         }
 
@@ -2862,23 +2978,27 @@
             }
             const transaction = transactions[index];
 
+            // Populate form fields
             document.getElementById('transaction-id').value = transaction.id;
             document.getElementById('transaction-date').value = transaction.date;
 
             const typeSelect = document.getElementById('transaction-type');
             const otherInput = document.getElementById('transaction-type-other');
 
+            // Check if the transaction type is a custom one
             if (savedOtherTransactionTypes[transaction.type]) {
                 typeSelect.value = 'other';
                 otherInput.value = transaction.type;
                 otherInput.style.display = 'block';
             } else {
+                // Check if it's a predefined type
                 const predefinedTypes = ["Wave Money", "Wave Pay", "KBZ Pay", "Aya Pay"];
                 if (predefinedTypes.includes(transaction.type)) {
                     typeSelect.value = transaction.type;
                     otherInput.style.display = 'none';
                     otherInput.value = '';
                 } else {
+                    // If not predefined and not custom, treat as custom and add it
                     typeSelect.value = 'other';
                     otherInput.value = transaction.type;
                     otherInput.style.display = 'block';
@@ -2899,6 +3019,7 @@
             document.getElementById('transaction-commission').value = transaction.commission ? formatNumber(transaction.commission) : '';
             document.getElementById('transaction-fee').value = transaction.fee ? formatNumber(transaction.fee) : '';
 
+            // Format phone number for input
             if (transaction.phone && transaction.phone.startsWith('09')) {
                 document.getElementById('transaction-phone').value = transaction.phone.substring(2);
             } else {
@@ -2907,14 +3028,15 @@
 
             document.getElementById('transaction-note').value = transaction.note || '';
 
+            // Remove the transaction from the list temporarily while editing
             transactions.splice(index, 1);
             updateSummariesBasedOnCurrentView();
             updateTransactionList();
             showToast('Transaction loaded for editing');
-            window.scrollTo(0, 0);
+            window.scrollTo(0, 0); // Scroll to top to focus on the form
         }
 
-        // Deletes a transaction at the specified index
+        // Deletes a transaction at the specified index after confirmation
         function deleteTransaction(index) {
             if (index < 0 || index >= transactions.length) {
                 console.error("Invalid index for deleteTransaction:", index);
@@ -2923,8 +3045,9 @@
             }
 
             if (confirm('Are you sure you want to delete this transaction? This action cannot be undone.')) {
-                transactions.splice(index, 1);
+                transactions.splice(index, 1); // Remove the transaction
 
+                // Save the updated list
                 try {
                     localStorage.setItem('moneyManager_transactions', JSON.stringify(transactions));
                     showToast('Transaction deleted successfully');
@@ -2933,35 +3056,39 @@
                     showToast('Error saving changes after deletion', 'error');
                 }
 
-                updateSummariesBasedOnCurrentView();
-                updateTransactionList();
+                updateSummariesBasedOnCurrentView(); // Update summaries
+                updateTransactionList(); // Refresh the displayed list
             }
         }
 
-        // Filters the transaction list based on selected criteria
+        // Filters the transaction list based on selected criteria (type, action, date)
         function filterTransactions() {
             const typeFilter = document.getElementById('transaction-filter-type').value;
             const actionFilter = document.getElementById('transaction-filter-action').value;
             const dateFilterValue = document.getElementById('transaction-filter-date').value;
 
-            let filtered = transactions;
+            let filtered = transactions; // Start with all transactions
 
+            // Apply type filter
             if (typeFilter !== 'all') {
                 filtered = filtered.filter(t => t.type === typeFilter);
             }
 
+            // Apply action filter
             if (actionFilter !== 'all') {
                 filtered = filtered.filter(t => t.action === actionFilter);
             }
 
+            // Apply date filter
             if (dateFilterValue) {
                 try {
                     const filterDate = new Date(dateFilterValue);
-                    filterDate.setHours(0, 0, 0, 0);
+                    filterDate.setHours(0, 0, 0, 0); // Set to start of day for comparison
 
                     filtered = filtered.filter(t => {
                         const transactionDateTime = new Date(t.date);
-                        if (isNaN(transactionDateTime.getTime())) return false;
+                        if (isNaN(transactionDateTime.getTime())) return false; // Skip if date is invalid
+                        // Compare date parts only
                         return transactionDateTime.getFullYear() === filterDate.getFullYear() &&
                                transactionDateTime.getMonth() === filterDate.getMonth() &&
                                transactionDateTime.getDate() === filterDate.getDate();
@@ -2969,51 +3096,51 @@
                 } catch (e) {
                     console.error("Error applying date filter:", e);
                     showToast("Error applying date filter.", "error");
-                    filtered = [];
+                    filtered = []; // Clear filtered list on error
                 }
             }
 
-            currentFilteredTransactions = filtered;
-            updateTransactionList(filtered);
-            updateSummariesBasedOnCurrentView();
+            currentFilteredTransactions = filtered; // Store the filtered list for summary updates
+            updateTransactionList(filtered); // Update the displayed list with filtered results
+            updateSummariesBasedOnCurrentView(); // Refresh summaries based on filtered data
         }
 
-        // Resets all transaction filters to their default values
+        // Resets all transaction filters to their default values and reloads the full list
         function resetTransactionFilters() {
             document.getElementById('transaction-filter-type').value = 'all';
             document.getElementById('transaction-filter-action').value = 'all';
             document.getElementById('transaction-filter-date').value = '';
-            currentFilteredTransactions = [];
-            updateTransactionList();
-            updateSummariesBasedOnCurrentView();
+            currentFilteredTransactions = []; // Clear the stored filtered list
+            updateTransactionList(); // Reload the full list
+            updateSummariesBasedOnCurrentView(); // Update summaries
         }
 
         // --- DAILY MONEY TAB FUNCTIONS ---
 
-        // Toggles the visibility of the commission percentage input field
+        // Toggles the visibility of the commission percentage input field based on the selected action
         function toggleCommissionField() {
             const action = document.getElementById('money-action').value;
             const commissionGroup = document.getElementById('money-commission-group');
 
             if (action === 'Emoney In') {
-                commissionGroup.style.display = 'block';
+                commissionGroup.style.display = 'block'; // Show if E-Money In
             } else {
-                commissionGroup.style.display = 'none';
-                document.getElementById('money-commission').value = '';
+                commissionGroup.style.display = 'none'; // Hide otherwise
+                document.getElementById('money-commission').value = ''; // Clear value when hidden
             }
         }
 
-        // Calculates and formats the commission percentage input
+        // Calculates and formats the commission percentage input (allows only numbers and one decimal point)
         function calculateMoneyCommission() {
             const action = document.getElementById('money-action').value;
             const commissionPercentInput = document.getElementById('money-commission');
             const commissionGroup = document.getElementById('money-commission-group');
 
             if (action === 'Emoney In') {
-                commissionGroup.style.display = 'block';
+                commissionGroup.style.display = 'block'; // Ensure visible
                 let currentValue = commissionPercentInput.value;
                 let cleanedValue = '';
-                let dotFound = false;
+                let dotFound = false; // To allow only one decimal point
                 for (let i = 0; i < currentValue.length; i++) {
                     const char = currentValue[i];
                     if (char >= '0' && char <= '9') {
@@ -3023,9 +3150,9 @@
                         dotFound = true;
                     }
                 }
-                commissionPercentInput.value = cleanedValue;
+                commissionPercentInput.value = cleanedValue; // Update input with cleaned value
             } else {
-                 commissionPercentInput.value = '';
+                 commissionPercentInput.value = ''; // Clear if not E-Money In
                  commissionGroup.style.display = 'none';
             }
         }
@@ -3036,23 +3163,24 @@
             const otherInput = document.getElementById('money-type-other');
 
             if (typeSelect.value === 'other') {
-                otherInput.style.display = 'block';
+                otherInput.style.display = 'block'; // Show input
                 otherInput.focus();
             } else {
-                otherInput.style.display = 'none';
-                otherInput.value = '';
+                otherInput.style.display = 'none'; // Hide input
+                otherInput.value = ''; // Clear input value
             }
         }
 
         // Adds a new money record based on form input
         function addMoneyRecord() {
             const date = document.getElementById('money-date').value;
-            const amount = parseFloat(document.getElementById('money-amount').value.replace(/,/g, ''));
+            const amount = parseFloat(document.getElementById('money-amount').value.replace(/,/g, '')); // Parse amount
             const action = document.getElementById('money-action').value;
             let type = document.getElementById('money-type').value;
             const otherInput = document.getElementById('money-type-other');
 
-            let finalType = type;
+            let finalType = type; // Type to be stored
+            // Handle custom money record types
             if (type === 'other') {
                 const customType = otherInput.value.trim();
                 if (!customType) {
@@ -3060,6 +3188,7 @@
                     return;
                 }
                 finalType = customType;
+                // Save custom type if new
                 if (!savedOtherMoneyTypes[finalType]) {
                     savedOtherMoneyTypes[finalType] = finalType;
                     try {
@@ -3067,29 +3196,32 @@
                     } catch (e) {
                         console.error("Error saving custom money type:", e);
                     }
-                    addOptionToSelect('money-type', finalType);
+                    addOptionToSelect('money-type', finalType); // Add to dropdown
                 }
             }
 
+            // Calculate actual commission for 'Emoney In'
             const commissionPercentage = parseFloat(document.getElementById('money-commission').value.replace(/,/g, ''));
             let actualCommission = 0;
-
             if (action === 'Emoney In' && !isNaN(amount) && amount > 0 && !isNaN(commissionPercentage) && commissionPercentage >= 0) {
                 actualCommission = (amount * commissionPercentage) / 100;
             }
 
             const note = document.getElementById('money-note').value.trim();
 
+            // Validation
             if (!date) { showToast('Date/Time is required.', 'error'); return; }
             if (!finalType) { showToast('Type is required.', 'error'); return; }
             if (isNaN(amount) || amount <= 0) { showToast('Amount must be a positive number.', 'error'); return; }
 
+            // Create the record object
             const record = {
                 date, amount, action, type: finalType, commission: actualCommission, note
             };
 
-            moneyRecords.unshift(record);
+            moneyRecords.unshift(record); // Add to the beginning
 
+            // Save to localStorage
             try {
                 localStorage.setItem('moneyManager_moneyRecords', JSON.stringify(moneyRecords));
                 showToast('Money record added successfully!');
@@ -3098,9 +3230,9 @@
                 showToast('Error saving money record', 'error');
             }
 
-            updateSummariesBasedOnCurrentView();
-            updateMoneyList();
-            clearMoneyForm();
+            updateSummariesBasedOnCurrentView(); // Update UI
+            updateMoneyList(); // Refresh list display
+            clearMoneyForm(); // Clear form
         }
 
         // Clears and resets the money record form fields
@@ -3111,40 +3243,43 @@
             document.getElementById('money-type-other').value = '';
             document.getElementById('money-type-other').style.display = 'none';
             document.getElementById('money-commission').value = '';
-            document.getElementById('money-commission-group').style.display = 'none';
+            document.getElementById('money-commission-group').style.display = 'none'; // Ensure commission field is hidden by default
             document.getElementById('money-note').value = '';
-            updateDateTimeFields();
+            updateDateTimeFields(); // Reset date/time
         }
 
         // Renders the money records list, grouping them by date
         function updateMoneyList(filteredRecords = null) {
             const listContainer = document.querySelector('#money-list .transaction-list-items');
-            const recordsToShow = filteredRecords !== null ? filteredRecords : moneyRecords;
+            listContainer.innerHTML = ''; // Clear existing list
 
-            listContainer.innerHTML = '';
+            const recordsToShow = filteredRecords !== null ? filteredRecords : moneyRecords; // Use filtered list if available
 
             if (recordsToShow.length === 0) {
                 listContainer.innerHTML += '<p class="no-data">No money records found.</p>';
                 return;
             }
 
+            // Group records by date
             const groupedRecords = {};
             recordsToShow.forEach((record, index) => {
-                const dateKey = new Date(record.date).toISOString().split('T')[0];
+                const dateKey = new Date(record.date).toISOString().split('T')[0]; // Date for grouping
 
                 if (!groupedRecords[dateKey]) {
                     groupedRecords[dateKey] = {
-                        items: [],
-                        details: { emoneyIn: 0, emoneyOut: 0, cashIn: 0, cashOut: 0, commission: 0 }
+                        items: [], // Store records for this date
+                        details: { emoneyIn: 0, emoneyOut: 0, cashIn: 0, cashOut: 0, commission: 0 } // Daily summary totals
                     };
                 }
+                // Find original index for edit/delete
                 const originalIndex = moneyRecords.findIndex(r => r.date === record.date && r.amount === record.amount && r.action === record.action);
                 groupedRecords[dateKey].items.push({ ...record, originalIndex: originalIndex });
 
+                // Calculate daily summary totals
                 const recordAmount = parseFloat(record.amount);
                 if (record.action === 'Emoney In') {
                     groupedRecords[dateKey].details.emoneyIn += recordAmount;
-                    groupedRecords[dateKey].details.commission += parseFloat(record.commission);
+                    groupedRecords[dateKey].details.commission += parseFloat(record.commission); // Add commission
                 } else if (record.action === 'Emoney Out') {
                     groupedRecords[dateKey].details.emoneyOut += recordAmount;
                 } else if (record.action === 'Cash In') {
@@ -3154,8 +3289,10 @@
                 }
             });
 
+            // Sort dates descending
             const sortedDates = Object.keys(groupedRecords).sort().reverse();
 
+            // Render each day's group
             for (const dateKey of sortedDates) {
                 const groupData = groupedRecords[dateKey];
                 const displayDate = new Date(dateKey).toDateString();
@@ -3172,7 +3309,9 @@
                     <div class="group-details">
                         ${groupData.items.map(item => {
                             let detailsHtml = '';
+                            // Show commission if > 0
                             if (item.commission > 0) detailsHtml += `<span class="transaction-info-item"><strong>Comm:</strong> ${formatNumber(item.commission)}</span>`;
+                            // Show note if present
                             if (item.note) {
                                 const truncatedNote = item.note.length > 50 ? item.note.substring(0, 50) + '...' : item.note;
                                 detailsHtml += `<span class="transaction-info-item"><strong>Note:</strong> ${truncatedNote}</span>`;
@@ -3210,6 +3349,7 @@
             }
             const record = moneyRecords[index];
 
+            // Populate form
             document.getElementById('money-date').value = record.date;
             document.getElementById('money-amount').value = formatNumber(record.amount);
             document.getElementById('money-action').value = record.action;
@@ -3217,6 +3357,7 @@
             const typeSelect = document.getElementById('money-type');
             const otherInput = document.getElementById('money-type-other');
 
+            // Handle custom type visibility
             if (savedOtherMoneyTypes[record.type]) {
                 typeSelect.value = 'other';
                 otherInput.value = record.type;
@@ -3228,6 +3369,7 @@
                     otherInput.style.display = 'none';
                     otherInput.value = '';
                 } else {
+                    // Treat as custom if not predefined and not already saved
                     typeSelect.value = 'other';
                     otherInput.value = record.type;
                     otherInput.style.display = 'block';
@@ -3243,7 +3385,7 @@
                 }
             }
 
-            toggleCommissionField();
+            toggleCommissionField(); // Adjust commission field visibility
             if (record.action === 'Emoney In') {
                 document.getElementById('money-commission').value = record.commission ? formatNumber(record.commission) : '';
             } else {
@@ -3252,14 +3394,15 @@
 
             document.getElementById('money-note').value = record.note || '';
 
+            // Remove record from list temporarily
             moneyRecords.splice(index, 1);
             updateSummariesBasedOnCurrentView();
             updateMoneyList();
             showToast('Money record loaded for editing');
-            window.scrollTo(0, 0);
+            window.scrollTo(0, 0); // Scroll to form
         }
 
-        // Deletes a money record at the specified index
+        // Deletes a money record at the specified index after confirmation
         function deleteMoneyRecord(index) {
             if (index < 0 || index >= moneyRecords.length) {
                 console.error("Invalid index for deleteMoneyRecord:", index);
@@ -3268,8 +3411,9 @@
             }
 
             if (confirm('Are you sure you want to delete this record? This action cannot be undone.')) {
-                moneyRecords.splice(index, 1);
+                moneyRecords.splice(index, 1); // Remove record
 
+                // Save changes
                 try {
                     localStorage.setItem('moneyManager_moneyRecords', JSON.stringify(moneyRecords));
                     showToast('Money record deleted successfully');
@@ -3278,30 +3422,33 @@
                     showToast('Error saving changes after deletion', 'error');
                 }
 
-                updateSummariesBasedOnCurrentView();
-                updateMoneyList();
+                updateSummariesBasedOnCurrentView(); // Update summaries
+                updateMoneyList(); // Refresh list display
             }
         }
 
-        // Filters the money records list based on selected criteria
+        // Filters the money records list based on selected criteria (action, date)
         function filterMoneyRecords() {
             const moneyActionFilter = document.getElementById('money-filter-action').value;
             const dateFilterValue = document.getElementById('money-filter-date').value;
 
-            let filtered = moneyRecords;
+            let filtered = moneyRecords; // Start with all records
 
+            // Apply action filter
             if (moneyActionFilter !== 'all') {
                 filtered = filtered.filter(r => r.action === moneyActionFilter);
             }
 
+            // Apply date filter
             if (dateFilterValue) {
                 try {
                     const filterDate = new Date(dateFilterValue);
-                    filterDate.setHours(0, 0, 0, 0);
+                    filterDate.setHours(0, 0, 0, 0); // Start of day
 
                     filtered = filtered.filter(r => {
                         const recordDateTime = new Date(r.date);
-                        if (isNaN(recordDateTime.getTime())) return false;
+                        if (isNaN(recordDateTime.getTime())) return false; // Skip invalid dates
+                        // Compare date parts
                         return recordDateTime.getFullYear() === filterDate.getFullYear() &&
                                recordDateTime.getMonth() === filterDate.getMonth() &&
                                recordDateTime.getDate() === filterDate.getDate();
@@ -3309,46 +3456,46 @@
                 } catch (e) {
                     console.error("Error applying date filter for money records:", e);
                     showToast("Error applying date filter.", "error");
-                    filtered = [];
+                    filtered = []; // Clear list on error
                 }
             }
 
-            updateMoneyList(filtered);
-            updateSummariesBasedOnCurrentView();
+            updateMoneyList(filtered); // Update list display
+            updateSummariesBasedOnCurrentView(); // Update summaries
         }
 
-        // Resets all money record filters to their default values
+        // Resets all money record filters and reloads the full list
         function resetMoneyFilters() {
             document.getElementById('money-filter-action').value = 'all';
             document.getElementById('money-filter-date').value = '';
-            updateMoneyList();
-            updateSummariesBasedOnCurrentView();
+            updateMoneyList(); // Reload full list
+            updateSummariesBasedOnCurrentView(); // Update summaries
         }
 
         // --- UPDATE DAILY SUMMARIES ---
 
-        // Updates various daily summary calculations
+        // Updates various daily summary calculations for transactions and money records
         function updateDailySummaries(transactionsToProcess = null, recordsToSummarize = null) {
+            // Determine the date for which to calculate summaries (from filters or today)
             const transactionFilterDateValue = document.getElementById('transaction-filter-date').value;
             const moneyFilterDateValue = document.getElementById('money-filter-date').value;
+            let relevantDateFilterValue = moneyFilterDateValue || transactionFilterDateValue; // Use money filter date if available, otherwise transaction filter date
 
-            let summaryStartDate = null;
-            let summaryEndDate = null;
-
-            let relevantDateFilterValue = moneyFilterDateValue || transactionFilterDateValue;
+            let summaryStartDate, summaryEndDate;
 
             if (relevantDateFilterValue) {
                 const filterDate = new Date(relevantDateFilterValue);
                 summaryStartDate = new Date(filterDate);
-                summaryStartDate.setHours(0, 0, 0, 0);
+                summaryStartDate.setHours(0, 0, 0, 0); // Start of the selected day
                 summaryEndDate = new Date(filterDate);
-                summaryEndDate.setHours(23, 59, 59, 999);
+                summaryEndDate.setHours(23, 59, 59, 999); // End of the selected day
             } else {
+                // If no filter date is set, use today
                 const today = new Date();
                 summaryStartDate = new Date(today);
-                summaryStartDate.setHours(0, 0, 0, 0);
+                summaryStartDate.setHours(0, 0, 0, 0); // Start of today
                 summaryEndDate = new Date(today);
-                summaryEndDate.setHours(23, 59, 59, 999);
+                summaryEndDate.setHours(23, 59, 59, 999); // End of today
             }
 
             // --- Transaction Tab Daily Changes Calculation ---
@@ -3357,34 +3504,35 @@
             let totalDailyCommissionFromTransactions = 0;
             let totalDailyFeeFromTransactions = 0;
 
-            const transactionsData = transactionsToProcess !== null ? transactionsToProcess : transactions;
+            const transactionsData = transactionsToProcess !== null ? transactionsToProcess : transactions; // Use provided filtered list or all transactions
 
             transactionsData.forEach(t => {
                 const transactionDateTime = new Date(t.date);
+                // Check if transaction falls within the summary date range
                 if (transactionDateTime >= summaryStartDate && transactionDateTime <= summaryEndDate) {
                     const amount = parseFloat(t.amount);
-                    const commission = parseFloat(t.commission);
-                    const fee = parseFloat(t.fee);
+                    const commission = parseFloat(t.commission) || 0;
+                    const fee = parseFloat(t.fee) || 0;
 
+                    // Track commission and fee earned
+                    totalDailyCommissionFromTransactions += commission;
+                    totalDailyFeeFromTransactions += fee;
+
+                    // Adjust E-Money/Cash balances based on transaction action
                     if (t.action === 'Cash In') {
                         dailyEMoneyChangeFromTransactions -= amount; dailyCashChangeFromTransactions += amount;
                     } else if (t.action === 'Cash Out') {
                         dailyEMoneyChangeFromTransactions += amount; dailyCashChangeFromTransactions -= amount;
-                    } else if (t.action === 'Send Money') {
-                        dailyEMoneyChangeFromTransactions -= (amount + commission + fee); dailyCashChangeFromTransactions += (commission + fee);
+                    } else if (t.action === 'Send Money' || t.action === 'Payment' || t.action === 'Phone Bill') {
+                        dailyEMoneyChangeFromTransactions -= amount; // Deduct from E-Money
                     } else if (t.action === 'Received Money') {
-                        dailyEMoneyChangeFromTransactions += (amount - commission - fee); dailyCashChangeFromTransactions -= (commission + fee);
-                    } else if (t.action === 'Payment') {
-                        dailyEMoneyChangeFromTransactions -= (amount + commission + fee); dailyCashChangeFromTransactions += (commission + fee);
-                    } else if (t.action === 'Phone Bill') {
-                        dailyEMoneyChangeFromTransactions -= (amount + commission + fee); dailyCashChangeFromTransactions += (commission + fee);
+                        dailyEMoneyChangeFromTransactions += amount; // Add to E-Money
                     }
-
-                    totalDailyCommissionFromTransactions += commission;
-                    totalDailyFeeFromTransactions += fee;
+                    // Note: Commission and Fee are not directly added/subtracted from E-Money/Cash balances here.
                 }
             });
 
+            // Update transaction tab's daily summary spans
             document.getElementById('daily-e-money').textContent = formatNumber(dailyEMoneyChangeFromTransactions);
             document.getElementById('daily-cash').textContent = formatNumber(dailyCashChangeFromTransactions);
             document.getElementById('total-commission-summary').textContent = formatNumber(totalDailyCommissionFromTransactions);
@@ -3395,12 +3543,14 @@
                 emoneyIn: 0, emoneyOut: 0, cashIn: 0, cashOut: 0, commission: 0
             };
 
-            const moneyRecordsData = recordsToSummarize !== null ? recordsToSummarize : moneyRecords;
+            const moneyRecordsData = recordsToSummarize !== null ? recordsToSummarize : moneyRecords; // Use provided filtered list or all records
 
             moneyRecordsData.forEach(r => {
                 const recordDateTime = new Date(r.date);
+                // Check if record falls within the summary date range
                 if (recordDateTime >= summaryStartDate && recordDateTime <= summaryEndDate) {
                     const recordAmount = parseFloat(r.amount);
+                    // Categorize and sum up amounts and commissions
                     if (r.action === 'Emoney In') {
                         dailySummaryForMoneyRecords.emoneyIn += recordAmount;
                         dailySummaryForMoneyRecords.commission += parseFloat(r.commission);
@@ -3414,33 +3564,30 @@
                 }
             });
 
+            // Update daily money tab summary spans
             document.getElementById('daily-emoney-in').textContent = formatNumber(dailySummaryForMoneyRecords.emoneyIn);
             document.getElementById('daily-emoney-out').textContent = formatNumber(dailySummaryForMoneyRecords.emoneyOut);
             document.getElementById('daily-cash-in').textContent = formatNumber(dailySummaryForMoneyRecords.cashIn);
             document.getElementById('daily-cash-out').textContent = formatNumber(dailySummaryForMoneyRecords.cashOut);
 
+            // Calculate and update remaining balance based on money records
             let dailyEMoneyBalanceChangeFromMoneyRecords = 0;
             let dailyCashBalanceChangeFromMoneyRecords = 0;
-
             moneyRecordsData.forEach(r => {
                 const recordDateTime = new Date(r.date);
                 if (recordDateTime >= summaryStartDate && recordDateTime <= summaryEndDate) {
                     const recordAmount = parseFloat(r.amount);
-                    if (r.action === 'Emoney In') {
-                        dailyEMoneyBalanceChangeFromMoneyRecords += recordAmount;
-                    } else if (r.action === 'Emoney Out') {
-                        dailyEMoneyBalanceChangeFromMoneyRecords -= recordAmount;
-                    } else if (r.action === 'Cash In') {
-                        dailyCashBalanceChangeFromMoneyRecords += recordAmount;
-                    } else if (r.action === 'Cash Out') {
-                        dailyCashBalanceChangeFromMoneyRecords -= recordAmount;
-                    }
+                    if (r.action === 'Emoney In') dailyEMoneyBalanceChangeFromMoneyRecords += recordAmount;
+                    else if (r.action === 'Emoney Out') dailyEMoneyBalanceChangeFromMoneyRecords -= recordAmount;
+                    else if (r.action === 'Cash In') dailyCashBalanceChangeFromMoneyRecords += recordAmount;
+                    else if (r.action === 'Cash Out') dailyCashBalanceChangeFromMoneyRecords -= recordAmount;
                 }
             });
 
             const totalDailyRemainingBalance = dailyEMoneyBalanceChangeFromMoneyRecords + dailyCashBalanceChangeFromMoneyRecords;
             document.getElementById('daily-remaining').textContent = formatNumber(totalDailyRemainingBalance);
 
+            // Show commission if it's greater than zero
             if (dailySummaryForMoneyRecords.commission > 0) {
                 document.getElementById('daily-money-commission-item').style.display = 'flex';
                 document.getElementById('daily-money-commission').textContent = formatNumber(dailySummaryForMoneyRecords.commission);
@@ -3448,10 +3595,11 @@
                 document.getElementById('daily-money-commission-item').style.display = 'none';
             }
 
-            // --- Auto-expand summary sections if they contain data ---
+            // Auto-expand summary sections if they contain relevant data
             const transactionSummarySection = document.getElementById('transaction').querySelector('.summary-section');
             if (transactionSummarySection) {
                 const hasTransactionData = (transactionsData.length > 0 || dailyEMoneyChangeFromTransactions !== 0 || dailyCashChangeFromTransactions !== 0 || totalDailyCommissionFromTransactions !== 0 || totalDailyFeeFromTransactions !== 0);
+                // Expand if data exists and section is collapsed, or collapse if no data and section is expanded
                 if (hasTransactionData && !transactionSummarySection.classList.contains('expanded')) {
                      toggleExpand(transactionSummarySection);
                 } else if (!hasTransactionData && transactionSummarySection.classList.contains('expanded')) {
@@ -3462,6 +3610,7 @@
             const dailyMoneySummarySection = document.querySelector('#daily-money .summary-section');
             if (dailyMoneySummarySection) {
                 const hasMoneyRecordData = (moneyRecordsData.length > 0 || dailySummaryForMoneyRecords.emoneyIn !== 0 || dailySummaryForMoneyRecords.emoneyOut !== 0 || dailySummaryForMoneyRecords.cashIn !== 0 || dailySummaryForMoneyRecords.cashOut !== 0 || dailySummaryForMoneyRecords.commission !== 0);
+                // Expand if data exists and section is collapsed, or collapse if no data and section is expanded
                 if (hasMoneyRecordData && !dailyMoneySummarySection.classList.contains('expanded')) {
                     toggleExpand(dailyMoneySummarySection);
                 } else if (!hasMoneyRecordData && dailyMoneySummarySection.classList.contains('expanded')) {
@@ -3470,24 +3619,25 @@
             }
         }
 
-        // Helper function to toggle expansion of sections
+        // Helper function to toggle the expanded/collapsed state of a summary section
         function toggleExpand(element) {
-            element.classList.toggle('expanded');
+            element.classList.toggle('expanded'); // Toggle the 'expanded' class
             const summaryList = element.querySelector('.summary-list');
             if (summaryList) {
-                summaryList.style.display = element.classList.contains('expanded') ? 'block' : 'none';
+                summaryList.style.display = element.classList.contains('expanded') ? 'block' : 'none'; // Show/hide the list
             }
-            // Update arrow icon
+            // Update the arrow icon's rotation
             const arrow = element.querySelector('h2 .arrow');
             if (arrow) {
                 arrow.style.transform = element.classList.contains('expanded') ? 'rotate(180deg)' : 'rotate(0deg)';
             }
         }
 
-        // Helper function to ensure summaries are updated correctly, considering filters
+        // Helper function to ensure summaries are updated correctly, considering current filters
         function updateSummariesBasedOnCurrentView() {
-            let filteredTransactionsForSummary = transactions;
+            let filteredTransactionsForSummary = transactions; // Start with all transactions
             const transactionFilterDateValue = document.getElementById('transaction-filter-date').value;
+            // If a date filter is active for transactions, apply it for summary calculation
             if (transactionFilterDateValue) {
                 try {
                     const filterDate = new Date(transactionFilterDateValue);
@@ -3506,10 +3656,11 @@
                 }
             }
 
-            let filteredMoneyRecordsForSummary = moneyRecords;
+            let filteredMoneyRecordsForSummary = moneyRecords; // Start with all money records
             const moneyActionFilterValue = document.getElementById('money-filter-action').value;
             const moneyDateFilterValue = document.getElementById('money-filter-date').value;
 
+            // Apply money record filters if they are active
             if (moneyActionFilterValue !== 'all') {
                 filteredMoneyRecordsForSummary = filteredMoneyRecordsForSummary.filter(r => r.action === moneyActionFilterValue);
             }
@@ -3532,16 +3683,19 @@
                 }
             }
 
+            // Re-render lists if they are currently visible and expanded to reflect filter changes
             if (document.getElementById('daily-money').classList.contains('active') && document.getElementById('money-list').classList.contains('expanded')) {
-                updateMoneyList(filteredMoneyRecordsForSummary);
+                updateMoneyList(filteredMoneyRecordsForSummary); // Update money list with filtered data
             }
             if (document.getElementById('transaction').classList.contains('active') && document.getElementById('transaction-list').classList.contains('expanded')) {
-                updateTransactionList(currentFilteredTransactions);
+                updateTransactionList(currentFilteredTransactions); // Update transaction list with currently filtered data
             }
 
+            // Update all summaries regardless of whether lists are expanded
             updateDailySummaries(filteredTransactionsForSummary, filteredMoneyRecordsForSummary);
-            updateTransactionTabBalances();
+            updateTransactionTabBalances(); // Update balances on the transaction tab
 
+            // Update expense summaries if expense tab is active
             if (document.getElementById('expense').classList.contains('active')) {
                 updateExpenseSummaries();
                 updatePeriodicalExpenseSummaries();
@@ -3557,9 +3711,10 @@
                 return;
             }
 
+            // Prepare data for Excel sheet
             const dataForExcel = transactions.map(t => ({
                 'Transaction ID': t.id,
-                'Date': new Date(t.date).toLocaleString(),
+                'Date': new Date(t.date).toLocaleString(), // Format date/time
                 'Type': t.type,
                 'Action': t.action,
                 'Amount': t.amount,
@@ -3569,12 +3724,13 @@
                 'Note': t.note
             }));
 
+            // Create worksheet and workbook using XLSX library
             const ws = XLSX.utils.json_to_sheet(dataForExcel);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Transactions");
+            XLSX.utils.book_append_sheet(wb, ws, "Transactions"); // Add sheet to workbook
 
             try {
-                XLSX.writeFile(wb, "MoneyManager_Transactions.xlsx");
+                XLSX.writeFile(wb, "MoneyManager_Transactions.xlsx"); // Trigger download
                 showToast('Transactions exported to Excel!');
             } catch (e) {
                 console.error("Error during Excel export:", e);
@@ -3582,7 +3738,7 @@
             }
         }
 
-        // Exports the transaction list to a PDF document
+        // Exports the transaction list to a PDF document using html2canvas and jsPDF
         function exportToPDF() {
             if (transactions.length === 0) {
                 showToast('No transactions to export', 'error');
@@ -3595,31 +3751,36 @@
                 return;
             }
 
+            // Ensure the transaction list is expanded and rendered before capturing
             if (transactionListSection.classList.contains('expanded') === false) {
-                 toggleTransactionList(); // Expand the list if it's collapsed
+                 toggleTransactionList(); // Expand if collapsed
             }
+            // Re-render if list is empty or shows "no data" message, but there are actual transactions
             if (transactionListSection.querySelector('.transaction-list-items').innerHTML.trim() === '' || transactionListSection.querySelector('.no-data')) {
                  if (transactions.length > 0) {
-                    updateTransactionList(); // Render if empty
+                    updateTransactionList(); // Render the list if it's empty
                  }
             }
 
+            // Use a short delay to ensure rendering/expansion is complete
             setTimeout(() => {
-                const captureTarget = document.getElementById('transaction');
+                const captureTarget = document.getElementById('transaction'); // Target the whole tab content for capture
                 if (!captureTarget) {
                     showToast('Transaction tab content not found for capture', 'error');
                     return;
                 }
 
+                // Create a temporary wrapper to isolate the content to be captured
                 const tempWrapper = document.createElement('div');
                 tempWrapper.style.cssText = 'position: absolute; left: -9999px; top: 0; opacity: 1; width: auto; height: auto; visibility: visible; padding: 20px; background-color: #ffffff; z-index: 10000; font-family: Arial, sans-serif;';
 
+                // Clone the transaction list items, remove action buttons, and add a title
                 const clonedListItems = transactionListSection.querySelector('.transaction-list-items').cloneNode(true);
                 const actionButtons = clonedListItems.querySelectorAll('.transaction-actions');
-                actionButtons.forEach(el => el.style.display = 'none');
+                actionButtons.forEach(el => el.style.display = 'none'); // Hide edit/delete buttons
 
                 const activeItems = clonedListItems.querySelectorAll('.transaction-item.active');
-                activeItems.forEach(item => item.classList.remove('active'));
+                activeItems.forEach(item => item.classList.remove('active')); // Remove active state for cleaner capture
 
                 tempWrapper.innerHTML = `
                     <h2 style="text-align: center; margin-bottom: 25px; color: #4CAF50; font-size: 24px; border-bottom: 2px solid #4CAF50; padding-bottom: 10px;">Transaction History</h2>
@@ -3627,51 +3788,56 @@
                         ${clonedListItems.innerHTML}
                     </div>
                 `;
-                document.body.appendChild(tempWrapper);
+                document.body.appendChild(tempWrapper); // Add wrapper to DOM for capture
 
+                // Use html2canvas to capture the wrapper content as an image
                 html2canvas(tempWrapper, {
-                    useCORS: true,
-                    logging: true,
-                    letterRendering: true,
-                    scale: 2,
-                    backgroundColor: '#ffffff'
+                    useCORS: true, // Use CORS for images if any are loaded
+                    logging: true, // Enable logging for debugging
+                    letterRendering: true, // Improve text rendering
+                    scale: 2, // Increase scale for better resolution
+                    backgroundColor: '#ffffff' // Ensure background is white
                 })
                 .then(canvas => {
                     if (tempWrapper.parentNode) {
-                        document.body.removeChild(tempWrapper);
+                        document.body.removeChild(tempWrapper); // Remove wrapper after capture
                     }
 
-                    const imgData = canvas.toDataURL('image/png');
+                    const imgData = canvas.toDataURL('image/png'); // Get image data URL
                     let pdf;
 
                     try {
+                        // Check if jsPDF is loaded correctly
                         if (typeof jspdf === 'undefined' || typeof jspdf.jsPDF === 'undefined') {
                             throw new Error("jsPDF library is not loaded or accessible.");
                         }
-                        pdf = new jspdf.jsPDF('p', 'mm', 'a4');
+                        pdf = new jspdf.jsPDF('p', 'mm', 'a4'); // Initialize PDF document (portrait, mm, A4)
                     } catch (e) {
                         console.error("PDF initialization error:", e);
                         showToast("Error initializing PDF generator. Ensure jsPDF is loaded correctly.", "error");
                         return;
                     }
 
-                    const imgProps = canvas;
-                    const pdfWidth = pdf.internal.pageSize.getWidth();
-                    const pdfHeight = pdf.internal.pageSize.getHeight();
+                    const imgProps = canvas; // Image properties from html2canvas
+                    const pdfWidth = pdf.internal.pageSize.getWidth(); // PDF page width
+                    const pdfHeight = pdf.internal.pageSize.getHeight(); // PDF page height
 
+                    // Calculate scaled image height to fit PDF page width while maintaining aspect ratio
                     const aspectRatio = imgProps.height / imgProps.width;
                     let scaledHeight = pdfWidth * aspectRatio;
 
-                    const pageMargin = 15;
+                    const pageMargin = 15; // Define page margins
 
+                    // Adjust scaled height if it exceeds page height minus margins
                     if (scaledHeight > pdfHeight - (2 * pageMargin)) {
                         scaledHeight = pdfHeight - (2 * pageMargin);
                     }
 
+                    // Add the captured image to the PDF
                     pdf.addImage(imgData, 'PNG', 0, pageMargin, pdfWidth, scaledHeight);
 
                     try {
-                        pdf.save("MoneyManager_Transactions.pdf");
+                        pdf.save("MoneyManager_Transactions.pdf"); // Save the PDF file
                         showToast('Transactions exported to PDF!');
                     } catch (e) {
                         console.error("Error saving PDF:", e);
@@ -3679,13 +3845,14 @@
                     }
                 })
                 .catch(error => {
+                    // Handle errors during canvas capture
                     if (tempWrapper.parentNode) {
                         document.body.removeChild(tempWrapper);
                     }
                     console.error("Error capturing transactions for PDF: ", error);
                     showToast('Failed to export transactions to PDF: ' + error.message, 'error');
                 });
-            }, 300);
+            }, 300); // Delay ensures rendering is complete
         }
 
         // --- TOGGLE VISIBILITY OF COLLAPSIBLE LISTS ---
@@ -3693,10 +3860,11 @@
         // Toggles the expanded/collapsed state of the transaction list
         function toggleTransactionList() {
             const listContainer = document.getElementById('transaction-list');
-            listContainer.classList.toggle('expanded');
+            listContainer.classList.toggle('expanded'); // Toggle the 'expanded' class
+            // If expanded and list is currently empty or showing 'no data', re-render it
             if (listContainer.classList.contains('expanded') && (listContainer.querySelector('.grouped-transaction') === null || listContainer.querySelector('.no-data'))) {
                  if (transactions.length > 0) {
-                    updateTransactionList();
+                    updateTransactionList(); // Render the list if there are transactions
                  }
             }
         }
@@ -3704,40 +3872,41 @@
         // Toggles the expanded/collapsed state of the money records list
         function toggleMoneyList() {
             const listContainer = document.getElementById('money-list');
-            listContainer.classList.toggle('expanded');
+            listContainer.classList.toggle('expanded'); // Toggle the 'expanded' class
+            // If expanded and list is currently empty or showing 'no data', re-render it
             if (listContainer.classList.contains('expanded') && (listContainer.querySelector('.grouped-transaction') === null || listContainer.querySelector('.no-data'))) {
                  if (moneyRecords.length > 0) {
-                    updateMoneyList();
+                    updateMoneyList(); // Render the list if there are records
                  }
             }
         }
 
-        // Toggles the expanded/collapsed state of the daily transaction summaries
+        // Toggles the expanded/collapsed state of the daily transaction summaries section
         function toggleTransactionSummary() {
             const summaryContainer = document.getElementById('transaction').querySelector('.summary-section');
             toggleExpand(summaryContainer);
         }
 
-        // Toggles the expanded/collapsed state of the daily money record summaries
+        // Toggles the expanded/collapsed state of the daily money record summaries section
         function toggleDailyMoneySummary() {
             const summaryContainer = document.getElementById('daily-money').querySelector('.summary-section');
             toggleExpand(summaryContainer);
         }
 
-        // Toggles the expanded/collapsed state of a grouped transaction/record list
+        // Generic function to toggle the expanded/collapsed state of a group (used for transactions/records)
         function toggleGroup(groupElement) {
-            groupElement.classList.toggle('expanded');
+            groupElement.classList.toggle('expanded'); // Toggle the 'expanded' class on the parent .grouped-transaction element
         }
 
         // --- DEBT/CREDIT TAB FUNCTIONS ---
 
-        // Updates the `existingDebtNames` array with unique names from the current `debts` data
+        // Updates the `existingDebtNames` array with unique names from the current `debts` data for autocomplete
         function updateExistingDebtNames() {
-            const nameSet = new Set();
+            const nameSet = new Set(); // Use a Set to store unique names efficiently
             debts.forEach(debtGroup => {
-                nameSet.add(debtGroup.name.toLowerCase());
+                nameSet.add(debtGroup.name.toLowerCase()); // Add names in lowercase for case-insensitive matching
             });
-            existingDebtNames = Array.from(nameSet);
+            existingDebtNames = Array.from(nameSet); // Convert Set back to array
         }
 
         // Handles input in the debt name field to show autocomplete suggestions
@@ -3746,26 +3915,32 @@
             const name = inputField.value.trim();
             const suggestionsContainer = document.getElementById('debt-name-suggestions');
 
+            // Clear previous suggestions and hide the container initially
             if (suggestionsContainer) {
                 suggestionsContainer.innerHTML = '';
                 suggestionsContainer.style.display = 'none';
             }
 
-            if (name.length < 2) return;
+            if (name.length < 2) return; // Don't show suggestions for very short inputs
 
+            // Find matching names from existing debt names
             const matchingNames = existingDebtNames
-                .filter(existingName => existingName.includes(name.toLowerCase()))
-                .slice(0, 5);
+                .filter(existingName => existingName.includes(name.toLowerCase())) // Filter names containing the input
+                .slice(0, 5); // Limit to top 5 suggestions
 
+            // If matches are found and suggestions container exists, display them
             if (matchingNames.length > 0 && suggestionsContainer) {
                 suggestionsContainer.style.display = 'block';
                 matchingNames.forEach(match => {
                     const suggestionItem = document.createElement('div');
                     suggestionItem.className = 'debt-suggestion-item';
+                    // Capitalize the first letter of the suggestion for display
                     suggestionItem.textContent = match.charAt(0).toUpperCase() + match.slice(1);
+                    // Set click handler to populate input and hide suggestions
                     suggestionItem.onclick = () => {
                         inputField.value = suggestionItem.textContent;
                         if (suggestionsContainer) suggestionsContainer.style.display = 'none';
+                        // Remove the global click listener if it exists
                         if (hideSuggestionsOnClickOutside) {
                             document.removeEventListener('click', hideSuggestionsOnClickOutside);
                             hideSuggestionsOnClickOutside = null;
@@ -3774,11 +3949,13 @@
                     suggestionsContainer.appendChild(suggestionItem);
                 });
 
+                // Add a global click listener to close suggestions when clicking outside
                 if (!hideSuggestionsOnClickOutside) {
                     hideSuggestionsOnClickOutside = (e) => {
+                        // Check if the click was outside the input and suggestions container
                         if (suggestionsContainer && !suggestionsContainer.contains(e.target) && !inputField.contains(e.target)) {
-                            suggestionsContainer.style.display = 'none';
-                            document.removeEventListener('click', hideSuggestionsOnClickOutside);
+                            suggestionsContainer.style.display = 'none'; // Hide suggestions
+                            document.removeEventListener('click', hideSuggestionsOnClickOutside); // Remove listener
                             hideSuggestionsOnClickOutside = null;
                         }
                     };
@@ -3792,83 +3969,97 @@
             const nameInput = document.getElementById('debt-name');
             const name = nameInput.value.trim();
 
-            const type = document.getElementById('debt-type').value;
+            const type = document.getElementById('debt-type').value; // 'payable' or 'receivable'
             const amountStr = document.getElementById('debt-amount').value;
-            const amount = parseFloat(amountStr.replace(/,/g, ''));
+            const amount = parseFloat(amountStr.replace(/,/g, '')); // Parse amount
             const date = document.getElementById('debt-date').value;
             const note = document.getElementById('debt-note').value.trim();
 
+            // Validation
             if (!name) { showToast("Name is required.", "error"); return; }
             if (isNaN(amount) || amount <= 0) { showToast("Amount must be a positive number.", "error"); return; }
             if (!date) { showToast("Date/Time is required.", "error"); return; }
 
+            // Determine the type of the history entry
             let historyEntryType;
-            if (editingDebtEntry) {
+            if (editingDebtEntry) { // If editing, use the original type of the entry
                 historyEntryType = editingDebtEntry.type;
-            } else {
+            } else { // If adding new, determine type based on the selected group type
                 historyEntryType = type === 'payable' ? 'initial_payable' : 'initial_receivable';
             }
 
+            // Create the new or updated history entry object
             const newOrUpdatedEntry = {
-                id: editingDebtEntry ? editingDebtEntry.id : Date.now().toString(),
+                id: editingDebtEntry ? editingDebtEntry.id : Date.now().toString(), // Use existing ID if editing, otherwise generate new
                 date: date,
                 amount: amount,
-                type: historyEntryType,
+                type: historyEntryType, // Type of this specific transaction (initial/payment)
                 note: note
             };
 
+            // Find the index of the debt group for the given name and type
             let debtGroupIndex = debts.findIndex(debt => debt.name === name && debt.type === type);
-            let targetGroupType = type;
+            let targetGroupType = type; // The type of the group we are working with
 
+            // If the debt group doesn't exist, create it
             if (debtGroupIndex === -1) {
+                // Generate a unique ID for the group itself
                 debts.push({ name: name, type: targetGroupType, history: [], id: `debtGroup_${Date.now()}` });
-                debtGroupIndex = debts.length - 1;
+                debtGroupIndex = debts.length - 1; // Get the index of the newly added group
             }
 
+            // Handle cases where editing might change the group type (e.g., payable to receivable)
             let needsReconciliation = false;
             if (editingDebtEntry && editingDebtEntry.groupType !== targetGroupType) {
-                needsReconciliation = true;
+                needsReconciliation = true; // Indicate that the entry needs to be moved to a different group
             }
 
+            // Logic for updating or adding the entry
             if (editingDebtEntry && needsReconciliation) {
+                // Find the original group and remove the entry from it
                 const originalGroupIndex = debts.findIndex(debt => debt.name === name && debt.type === editingDebtEntry.groupType);
                 if (originalGroupIndex !== -1) {
                     const originalEntryIndex = debts[originalGroupIndex].history.findIndex(entry => entry.id.toString() === editingDebtEntry.id.toString());
                     if (originalEntryIndex !== -1) {
-                        debts[originalGroupIndex].history.splice(originalEntryIndex, 1);
+                        debts[originalGroupIndex].history.splice(originalEntryIndex, 1); // Remove entry
+                        // If the group becomes empty, remove the group itself
                         if (debts[originalGroupIndex].history.length === 0) {
                             debts.splice(originalGroupIndex, 1);
                         }
                     }
                 }
+                // Add the entry to the new (target) group
                 debts[debtGroupIndex].history.push(newOrUpdatedEntry);
             } else if (editingDebtEntry) {
+                // If editing within the same group, find the entry and update it
                 const entryIndexInGroup = debts[debtGroupIndex].history.findIndex(entry => entry.id.toString() === editingDebtEntry.id.toString());
                 if (entryIndexInGroup !== -1) {
-                    debts[debtGroupIndex].history[entryIndexInGroup] = newOrUpdatedEntry;
+                    debts[debtGroupIndex].history[entryIndexInGroup] = newOrUpdatedEntry; // Update the entry
                 } else {
+                    // If for some reason the entry wasn't found (e.g., group was created during edit), just add it
                     debts[debtGroupIndex].history.push(newOrUpdatedEntry);
                 }
             } else {
+                // If adding a new entry to an existing or newly created group
                 debts[debtGroupIndex].history.push(newOrUpdatedEntry);
             }
 
-            updateExistingDebtNames();
-            saveData();
-            renderDebts();
-            clearDebtForm();
-            showToast(editingDebtEntry ? 'Debt/Credit entry updated successfully!' : 'Debt/Credit added successfully!');
-            editingDebtEntry = null;
-            updateAddUpdateButtonText();
+            updateExistingDebtNames(); // Update the list of names for autocomplete
+            saveData(); // Save changes to localStorage
+            renderDebts(); // Re-render the debt lists
+            clearDebtForm(); // Clear the form
+            showToast(editingDebtEntry ? 'Debt/Credit entry updated successfully!' : 'Debt/Credit added successfully!'); // Show success message
+            editingDebtEntry = null; // Reset editing state
+            updateAddUpdateButtonText(); // Update button text
         }
 
-        // Updates the text and icon of the "Add/Update" button
+        // Updates the text and icon of the "Add/Update Debt/Credit" button based on editing state
         function updateAddUpdateButtonText() {
             const button = document.getElementById('add-update-debt-button');
             if (editingDebtEntry) {
-                button.textContent = 'Update Entry';
+                button.textContent = 'Update Entry'; // Change text to 'Update' if editing
             } else {
-                button.textContent = 'Add Debt/Credit';
+                button.textContent = 'Add Debt/Credit'; // Default text
             }
         }
 
@@ -3877,71 +4068,79 @@
             document.getElementById('debt-name').value = '';
             const suggestionsContainer = document.getElementById('debt-name-suggestions');
             if (suggestionsContainer) {
-                suggestionsContainer.innerHTML = '';
-                suggestionsContainer.style.display = 'none';
+                suggestionsContainer.innerHTML = ''; // Clear suggestions
+                suggestionsContainer.style.display = 'none'; // Hide container
             }
+            // Remove the global click listener for suggestions if it exists
             if (hideSuggestionsOnClickOutside) {
                 document.removeEventListener('click', hideSuggestionsOnClickOutside);
                 hideSuggestionsOnClickOutside = null;
             }
 
-            document.getElementById('debt-type').value = 'payable';
+            document.getElementById('debt-type').value = 'payable'; // Reset type
             document.getElementById('debt-amount').value = '';
-            updateDateTimeFields();
+            updateDateTimeFields(); // Reset date/time
             document.getElementById('debt-note').value = '';
-            updateDebtFormVisibility();
+            updateDebtFormVisibility(); // Update UI based on type (if any)
 
-            editingDebtEntry = null;
-            updateAddUpdateButtonText();
+            editingDebtEntry = null; // Clear editing state
+            updateAddUpdateButtonText(); // Reset button text
         }
 
-        // Renders the debts and credits lists, organized by name and type
+        // Renders the debts and credits lists, organized by name and type, calculating current balances
         function renderDebts() {
             const payableList = document.querySelector('#payable-debts-list .transaction-list-items');
             const receivableList = document.querySelector('#receivable-debts-list .transaction-list-items');
-            payableList.innerHTML = '';
+            payableList.innerHTML = ''; // Clear existing lists
             receivableList.innerHTML = '';
 
-            let totalPayable = 0;
-            let totalReceivable = 0;
+            let totalPayable = 0; // Total amount you owe
+            let totalReceivable = 0; // Total amount others owe you
 
+            // Aggregate debts by name and type to calculate balances
             const aggregatedDebts = {};
 
             debts.forEach(debtGroup => {
                 const { name, type, history, id } = debtGroup;
+                // Initialize aggregation for the name if it doesn't exist
                 if (!aggregatedDebts[name]) {
                     aggregatedDebts[name] = {
-                        payableHistory: [],
-                        receivableHistory: [],
+                        payableHistory: [], // History for when you owe money
+                        receivableHistory: [], // History for when others owe you
                     };
                 }
+                // Add history entries to the correct list based on group type
                 if (type === 'payable') {
-                    aggregatedDebts[name].payableHistory.push(...history.map(h => ({...h, groupId: id})));
+                    aggregatedDebts[name].payableHistory.push(...history.map(h => ({...h, groupId: id}))); // Include group ID for reference
                 } else {
                     aggregatedDebts[name].receivableHistory.push(...history.map(h => ({...h, groupId: id})));
                 }
             });
 
+            // Sort names alphabetically for consistent display
             const sortedNames = Object.keys(aggregatedDebts).sort();
 
+            // Process each aggregated debt entry
             sortedNames.forEach(name => {
                 const debtAggregation = aggregatedDebts[name];
 
                 // Process Payable Debts
                 if (debtAggregation.payableHistory.length > 0) {
-                    let currentPayableTotal = 0;
-                    debtAggregation.payableHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
+                    let currentPayableTotal = 0; // Track the net amount owed for this name
+                    debtAggregation.payableHistory.sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort history by date
                     debtAggregation.payableHistory.forEach(entry => {
+                        // Adjust total based on transaction type
                         if (entry.type === 'initial_payable' || entry.type === 'payment_out') {
-                            currentPayableTotal += entry.amount;
+                            currentPayableTotal += entry.amount; // Add to amount owed if it's an initial debt or a payment made
                         } else if (entry.type === 'initial_receivable' || entry.type === 'payment_in') {
-                            currentPayableTotal -= entry.amount;
+                            currentPayableTotal -= entry.amount; // Subtract if it's a payment received (reducing what you owe)
                         }
                     });
-                    currentPayableTotal = Math.max(0, currentPayableTotal);
+                    currentPayableTotal = Math.max(0, currentPayableTotal); // Ensure total doesn't go below zero
 
                     if (currentPayableTotal > 0) {
-                        totalPayable += currentPayableTotal;
+                        totalPayable += currentPayableTotal; // Add to overall total payable
+                        // Create and append the list item for payable debt
                         const payableDiv = createDebtListItem(name, 'payable', currentPayableTotal, debtAggregation.payableHistory);
                         payableList.appendChild(payableDiv);
                     }
@@ -3949,28 +4148,32 @@
 
                 // Process Receivable Credits
                 if (debtAggregation.receivableHistory.length > 0) {
-                    let currentReceivableTotal = 0;
-                    debtAggregation.receivableHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
+                    let currentReceivableTotal = 0; // Track the net amount owed to you
+                    debtAggregation.receivableHistory.sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort history by date
                     debtAggregation.receivableHistory.forEach(entry => {
+                        // Adjust total based on transaction type
                         if (entry.type === 'initial_receivable' || entry.type === 'payment_in') {
-                            currentReceivableTotal += entry.amount;
+                            currentReceivableTotal += entry.amount; // Add to amount owed to you
                         } else if (entry.type === 'initial_payable' || entry.type === 'payment_out') {
-                            currentReceivableTotal -= entry.amount;
+                            currentReceivableTotal -= entry.amount; // Subtract if it's a payment made (reducing what you're owed)
                         }
                     });
-                    currentReceivableTotal = Math.max(0, currentReceivableTotal);
+                    currentReceivableTotal = Math.max(0, currentReceivableTotal); // Ensure total doesn't go below zero
 
                     if (currentReceivableTotal > 0) {
-                        totalReceivable += currentReceivableTotal;
+                        totalReceivable += currentReceivableTotal; // Add to overall total receivable
+                        // Create and append the list item for receivable credit
                         const receivableDiv = createDebtListItem(name, 'receivable', currentReceivableTotal, debtAggregation.receivableHistory);
                         receivableList.appendChild(receivableDiv);
                     }
                 }
             });
 
+            // Update the display of total payable and receivable amounts
             document.getElementById('total-payable-amount').textContent = formatNumber(totalPayable);
             document.getElementById('total-receivable-amount').textContent = formatNumber(totalReceivable);
 
+            // Display "No data" messages if lists are empty
             if (payableList.children.length === 0) {
                 payableList.innerHTML = '<p class="no-data">No payable debts found.</p>';
             }
@@ -3983,14 +4186,16 @@
         function createDebtListItem(name, type, amount, history) {
             const debtDiv = document.createElement('div');
             debtDiv.className = 'debt-list-item';
-            debtDiv.dataset.name = name;
-            debtDiv.dataset.type = type;
+            debtDiv.dataset.name = name; // Store name for potential use
+            debtDiv.dataset.type = type; // Store type for potential use
 
+            // Determine amount class for styling (positive/negative)
             const amountClass = type === 'payable' ? 'negative' : 'positive';
-            const formattedAmount = formatNumber(amount);
+            const formattedAmount = formatNumber(amount); // Format amount
 
-            const historyHtml = generateHistoryHtml(history);
+            const historyHtml = generateHistoryHtml(history); // Generate HTML for history entries
 
+            // Create the HTML structure for the debt list item
             debtDiv.innerHTML = `
                 <div class="debt-item-summary" onclick="toggleDebtDetails(event, '${name.replace(/'/g, "\\'")}', '${type}')">
                     <div class="debt-name">${name}</div>
@@ -4011,41 +4216,44 @@
             return debtDiv;
         }
 
-        // Toggles the visibility of the detailed history for a debt entry
+        // Toggles the visibility of the detailed history for a debt entry when the summary is clicked
         function toggleDebtDetails(event, name, type) {
+            // Prevent toggling if the click was on an action button
             if (event.target.closest('.debt-actions') || event.target.closest('button')) {
                 return;
             }
 
-            const detailsDiv = document.getElementById(`debt-details-${name}-${type}`);
+            const detailsDiv = document.getElementById(`debt-details-${name}-${type}`); // Get the details container
             if (detailsDiv) {
-                detailsDiv.classList.toggle('visible');
-                updateToggleButtonIconAndText(name, type);
+                detailsDiv.classList.toggle('visible'); // Toggle the 'visible' class
+                updateToggleButtonIconAndText(name, type); // Update the 'Details' button appearance
             }
         }
 
-        // Handles the click event for the 'Details' button within a debt item
+        // Handles the click event for the 'Details' button within a debt item's actions
         function toggleDetailsButtonAction(name, type) {
             const detailsDiv = document.getElementById(`debt-details-${name}-${type}`);
             const toggleButton = detailsDiv ? detailsDiv.querySelector('.debt-actions button[onclick*="toggleDetailsButtonAction"]') : null;
 
             if (toggleButton && detailsDiv) {
-                detailsDiv.classList.toggle('visible');
-                updateToggleButtonIconAndText(name, type);
+                detailsDiv.classList.toggle('visible'); // Toggle visibility
+                updateToggleButtonIconAndText(name, type); // Update button appearance
             }
         }
 
-        // Updates the icon and text of the 'Details' button
+        // Updates the icon and text of the 'Details' button based on the visibility of the history
         function updateToggleButtonIconAndText(name, type) {
-            const detailsDiv = document.getElementById(`debt-details-${name}-${type}`);
+            const detailsDiv = document.getElementById(`details-${name}-${type}`);
             const toggleButton = detailsDiv ? detailsDiv.querySelector('.debt-actions button[onclick*="toggleDetailsButtonAction"]') : null;
 
             if (toggleButton && detailsDiv) {
-                const iconElement = toggleButton.querySelector('.fa-ellipsis-h, .fa-times');
+                const iconElement = toggleButton.querySelector('.fa-ellipsis-h, .fa-times'); // Find the icon
                 if (detailsDiv.classList.contains('visible')) {
+                    // If visible, change icon to 'times' and text to 'Hide Details'
                     if (iconElement) iconElement.classList.replace('fa-ellipsis-h', 'fa-times');
                     toggleButton.textContent = ' Hide Details';
                 } else {
+                    // If hidden, change icon back to 'ellipsis-h' and text to 'Details'
                     if (iconElement) iconElement.classList.replace('fa-times', 'fa-ellipsis-h');
                     toggleButton.textContent = ' Details';
                 }
@@ -4054,6 +4262,7 @@
 
         // Loads a specific history entry into the form for editing
         function editDebtHistoryEntry(entryId) {
+            // Iterate through debts to find the entry by ID
             for (let i = 0; i < debts.length; i++) {
                 const debtGroup = debts[i];
                 const historyEntryIndex = debtGroup.history.findIndex(entry => entry.id.toString() === entryId.toString());
@@ -4061,132 +4270,143 @@
                 if (historyEntryIndex !== -1) {
                     const entryToEdit = debtGroup.history[historyEntryIndex];
 
+                    // Populate the form with the entry's data
                     document.getElementById('debt-name').value = debtGroup.name;
                     document.getElementById('debt-type').value = debtGroup.type;
                     document.getElementById('debt-amount').value = formatNumber(entryToEdit.amount);
                     document.getElementById('debt-date').value = entryToEdit.date;
                     document.getElementById('debt-note').value = entryToEdit.note || '';
-                    updateDebtFormVisibility();
+                    updateDebtFormVisibility(); // Update UI if type affects it
 
+                    // Set editing state
                     editingDebtEntry = {
                         id: entryToEdit.id,
                         type: entryToEdit.type,
-                        groupType: debtGroup.type,
-                        groupIdx: i,
-                        entryIdx: historyEntryIndex
+                        groupType: debtGroup.type, // Store original group type
+                        groupIdx: i, // Store original group index
+                        entryIdx: historyEntryIndex // Store original entry index
                     };
-                    updateAddUpdateButtonText();
+                    updateAddUpdateButtonText(); // Change button text to 'Update'
 
+                    // Remove the entry from its original location temporarily
                     debtGroup.history.splice(historyEntryIndex, 1);
 
+                    // If the group becomes empty, remove the group itself
                     if (debtGroup.history.length === 0) {
                         debts.splice(i, 1);
                     }
 
-                    saveData();
-                    renderDebts();
+                    saveData(); // Save changes
+                    renderDebts(); // Re-render lists
                     showToast('Entry loaded for editing. Update form and click Update.');
-                    window.scrollTo(0, 0);
-                    return;
+                    window.scrollTo(0, 0); // Scroll to form
+                    return; // Exit loop once found
                 }
             }
-            showToast("Entry not found for editing.", "error");
+            showToast("Entry not found for editing.", "error"); // Show error if entry not found
         }
 
-        // Deletes a specific history entry from a debt group
+        // Deletes a specific history entry from a debt group after confirmation
         function deleteDebtHistoryEntry(entryId) {
             if (!confirm('Are you sure you want to delete this history entry?')) {
                 return;
             }
 
+            // Find the entry and delete it
             for (let i = 0; i < debts.length; i++) {
                 const debtGroup = debts[i];
                 const historyEntryIndex = debtGroup.history.findIndex(entry => entry.id.toString() === entryId.toString());
 
                 if (historyEntryIndex !== -1) {
-                    debtGroup.history.splice(historyEntryIndex, 1);
+                    debtGroup.history.splice(historyEntryIndex, 1); // Remove the entry
 
+                    // If the group becomes empty, remove the group
                     if (debtGroup.history.length === 0) {
                         debts.splice(i, 1);
                     }
 
-                    saveData();
-                    renderDebts();
+                    saveData(); // Save changes
+                    renderDebts(); // Re-render lists
                     showToast('History entry deleted successfully.');
-                    return;
+                    return; // Exit loop
                 }
             }
-            showToast("Entry not found for deletion.", "error");
+            showToast("Entry not found for deletion.", "error"); // Show error if not found
         }
 
-        // Deletes an entire debt group
+        // Deletes an entire debt group after confirmation
         function deleteDebtGroup(name, type) {
              if (!confirm(`Are you sure you want to delete the entire group for "${name}" (${type})? This action cannot be undone.`)) {
                 return;
             }
 
+            // Find the group to delete
             const groupIndexToDelete = debts.findIndex(debt => debt.name === name && debt.type === type);
 
             if (groupIndexToDelete !== -1) {
-                debts.splice(groupIndexToDelete, 1);
-                saveData();
-                renderDebts();
+                debts.splice(groupIndexToDelete, 1); // Remove the group
+                saveData(); // Save changes
+                renderDebts(); // Re-render lists
                 showToast('Debt group deleted successfully.');
             } else {
                 showToast('Group not found for deletion.', 'error');
             }
         }
 
-        // Placeholder function for UI changes based on debt type selection
+        // Placeholder function for UI changes based on debt type selection (can be expanded later)
         function updateDebtFormVisibility() {
-            // No specific UI changes needed yet
+            // Currently no specific UI changes based on debt type selection in the form
         }
 
-        // Filters the debt/credit lists based on a name search
+        // Filters the debt/credit lists based on a name search input
         function filterDebts() {
-            const nameFilter = document.getElementById('debt-filter-name').value.toLowerCase();
+            const nameFilter = document.getElementById('debt-filter-name').value.toLowerCase(); // Get filter text
             let filteredDebts = debts;
 
             if (nameFilter) {
+                // Filter debts where the name includes the filter text
                 filteredDebts = filteredDebts.filter(debtGroup => debtGroup.name.toLowerCase().includes(nameFilter));
             }
 
-            renderDebtsFiltered(filteredDebts);
+            renderDebtsFiltered(filteredDebts); // Render the filtered list
         }
 
         // Resets the debt/credit filters and shows all debts
         function resetDebtFilters() {
-            document.getElementById('debt-filter-name').value = '';
-            renderDebts();
+            document.getElementById('debt-filter-name').value = ''; // Clear the filter input
+            renderDebts(); // Show all debts again
         }
 
         // Generates the HTML for the history entries of a debt group
         function generateHistoryHtml(history) {
-            if (!history || history.length === 0) return '';
+            if (!history || history.length === 0) return ''; // Return empty string if no history
 
             let historyHtml = '<div class="debt-history-list">';
-            const sortedHistory = [...history].sort((a, b) => new Date(a.date) - new Date(b.date));
+            const sortedHistory = [...history].sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort history by date
 
+            // Iterate through sorted history entries
             sortedHistory.forEach(entry => {
                 const entryDateTime = new Date(entry.date);
-                const entryDisplay = entryDateTime.toLocaleString();
+                const entryDisplay = entryDateTime.toLocaleString(); // Formatted date and time
 
-                let amountClass = '';
-                let entryTypeLabel = '';
+                let amountClass = ''; // Class for styling amount (positive/negative)
+                let entryTypeLabel = ''; // Label for the type of history entry
 
+                // Determine label and class based on entry type
                 switch (entry.type) {
                     case 'initial_payable': amountClass = 'negative'; entryTypeLabel = 'Initial Debt'; break;
                     case 'initial_receivable': amountClass = 'positive'; entryTypeLabel = 'Initial Credit'; break;
                     case 'payment_out': amountClass = 'negative'; entryTypeLabel = 'Paid'; break;
                     case 'payment_in': amountClass = 'positive'; entryTypeLabel = 'Received'; break;
-                    default:
+                    default: // Handle any other custom types
                         amountClass = '';
-                        entryTypeLabel = entry.type.charAt(0).toUpperCase() + entry.type.slice(1).replace('_', ' ');
+                        entryTypeLabel = entry.type.charAt(0).toUpperCase() + entry.type.slice(1).replace('_', ' '); // Capitalize and replace underscores
                         break;
                 }
 
-                const noteDisplay = entry.note ? ` - ${entry.note}` : '';
+                const noteDisplay = entry.note ? ` - ${entry.note}` : ''; // Display note if present
 
+                // Create HTML for the history item
                 historyHtml += `
                     <div class="debt-history-item">
                         <span>${entryDisplay} - ${entryTypeLabel}${noteDisplay}</span>
@@ -4198,7 +4418,7 @@
                     </div>
                 `;
             });
-            historyHtml += '</div>';
+            historyHtml += '</div>'; // Close the history list div
             return historyHtml;
         }
 
@@ -4206,16 +4426,17 @@
         function renderDebtsFiltered(filteredDebts) {
             const payableList = document.querySelector('#payable-debts-list .transaction-list-items');
             const receivableList = document.querySelector('#receivable-debts-list .transaction-list-items');
-            payableList.innerHTML = '';
+            payableList.innerHTML = ''; // Clear lists
             receivableList.innerHTML = '';
 
             let totalPayable = 0;
             let totalReceivable = 0;
 
+            // Aggregate debts by name and type for processing
             const aggregatedDebts = {};
 
             filteredDebts.forEach(debtGroup => {
-                const { name, type, history } = debtGroup;
+                const { name, type, history, id } = debtGroup;
                 if (!aggregatedDebts[name]) {
                     aggregatedDebts[name] = { payableHistory: [], receivableHistory: [] };
                 }
@@ -4226,7 +4447,7 @@
                 }
             });
 
-            const sortedNames = Object.keys(aggregatedDebts).sort();
+            const sortedNames = Object.keys(aggregatedDebts).sort(); // Sort names alphabetically
 
             sortedNames.forEach(name => {
                 const debtAggregation = aggregatedDebts[name];
@@ -4234,7 +4455,7 @@
                 // Process Payable Debts
                 if (debtAggregation.payableHistory.length > 0) {
                     let currentPayableTotal = 0;
-                    debtAggregation.payableHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
+                    debtAggregation.payableHistory.sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
                     debtAggregation.payableHistory.forEach(entry => {
                         if (entry.type === 'initial_payable' || entry.type === 'payment_out') {
                             currentPayableTotal += entry.amount;
@@ -4242,7 +4463,7 @@
                             currentPayableTotal -= entry.amount;
                         }
                     });
-                    currentPayableTotal = Math.max(0, currentPayableTotal);
+                    currentPayableTotal = Math.max(0, currentPayableTotal); // Ensure non-negative
 
                     if (currentPayableTotal > 0) {
                         totalPayable += currentPayableTotal;
@@ -4254,7 +4475,7 @@
                 // Process Receivable Credits
                 if (debtAggregation.receivableHistory.length > 0) {
                     let currentReceivableTotal = 0;
-                    debtAggregation.receivableHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
+                    debtAggregation.receivableHistory.sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
                     debtAggregation.receivableHistory.forEach(entry => {
                         if (entry.type === 'initial_receivable' || entry.type === 'payment_in') {
                             currentReceivableTotal += entry.amount;
@@ -4262,7 +4483,7 @@
                             currentReceivableTotal -= entry.amount;
                         }
                     });
-                    currentReceivableTotal = Math.max(0, currentReceivableTotal);
+                    currentReceivableTotal = Math.max(0, currentReceivableTotal); // Ensure non-negative
 
                     if (currentReceivableTotal > 0) {
                         totalReceivable += currentReceivableTotal;
@@ -4272,9 +4493,11 @@
                 }
             });
 
+            // Update total amounts displayed
             document.getElementById('total-payable-amount').textContent = formatNumber(totalPayable);
             document.getElementById('total-receivable-amount').textContent = formatNumber(totalReceivable);
 
+            // Display "No data" messages if lists are empty
             if (payableList.children.length === 0) {
                 payableList.innerHTML = '<p class="no-data">No payable debts found.</p>';
             }
@@ -4288,17 +4511,17 @@
         // Adds a new category option to the expense category select dropdown
         function addExpenseCategoryToSelect(category) {
             const categorySelect = document.getElementById('expense-category');
-            const optionExists = Array.from(categorySelect.options).some(option => option.value === category);
+            const optionExists = Array.from(categorySelect.options).some(option => option.value.toLowerCase() === category.toLowerCase()); // Case-insensitive check
             if (!optionExists && category && category.trim() !== '' && category.trim().toLowerCase() !== 'other') {
                 const newOption = document.createElement('option');
                 newOption.value = category.trim();
                 newOption.textContent = category.trim();
 
-                const otherOption = categorySelect.querySelector('option[value="other"]');
+                const otherOption = categorySelect.querySelector('option[value="other"]'); // Find 'Other' option
                 if (otherOption) {
-                    categorySelect.insertBefore(newOption, otherOption);
+                    categorySelect.insertBefore(newOption, otherOption); // Insert before 'Other'
                 } else {
-                    categorySelect.appendChild(newOption);
+                    categorySelect.appendChild(newOption); // Append if 'Other' is not present (shouldn't happen)
                 }
             }
         }
@@ -4306,13 +4529,17 @@
         // Populates the expense category select dropdown with saved custom categories
         function populateExpenseCategories() {
             const categorySelect = document.getElementById('expense-category');
+            // Remove existing custom options (keep 'Other')
             while (categorySelect.options.length > 1) {
-                categorySelect.remove(1);
-            }
-            if (categorySelect.options.length === 0 || categorySelect.options[0].value !== 'other') {
-                categorySelect.innerHTML = '<option value="other">Other (Manual)</option>';
+                // If the second option is not 'Other', remove it. Break if it is 'Other'.
+                if (categorySelect.options[1].value !== 'other') {
+                    categorySelect.remove(1);
+                } else {
+                    break;
+                }
             }
 
+            // Add saved custom categories from localStorage
             if (typeof savedExpenseCategories === 'object' && savedExpenseCategories !== null) {
                 for (const category in savedExpenseCategories) {
                     if (Object.hasOwnProperty.call(savedExpenseCategories, category) && category.trim() !== '' && category.trim().toLowerCase() !== 'other') {
@@ -4321,23 +4548,29 @@
                 }
             }
 
+            // Ensure 'Other' is always the last option
             const otherOption = categorySelect.querySelector('option[value="other"]');
-            if (otherOption && otherOption.index < categorySelect.options.length - 1) {
-                 const otherOptionValue = otherOption.value;
-                 categorySelect.remove(otherOption.index);
-                 const newOtherOption = document.createElement('option');
-                 newOtherOption.value = otherOptionValue;
+            if (otherOption && otherOption.index !== categorySelect.options.length - 1) { // If 'Other' is not the last item
+                const otherOptionValue = otherOption.value;
+                categorySelect.remove(otherOption.index); // Remove it from its current position
+                const newOtherOption = document.createElement('option'); // Create a new 'Other' option
+                newOtherOption.value = otherOptionValue;
+                newOtherOption.textContent = 'Other (Manual)';
+                categorySelect.appendChild(newOtherOption); // Append it to the end
+            } else if (!otherOption) { // If 'Other' option doesn't exist at all
+                 const newOtherOption = document.createElement('option'); // Create and append it
+                 newOtherOption.value = 'other';
                  newOtherOption.textContent = 'Other (Manual)';
                  categorySelect.appendChild(newOtherOption);
             }
 
-            updateExpenseCategoryVisibility();
+            updateExpenseCategoryVisibility(); // Update visibility of the 'Other' input field
         }
 
         // Adds a new expense or income entry
         function addExpenseEntry() {
             const date = document.getElementById('expense-date').value;
-            const type = document.getElementById('expense-type').value;
+            const type = document.getElementById('expense-type').value; // Expense or Income
             const categorySelect = document.getElementById('expense-category');
             const categoryOtherInput = document.getElementById('expense-category-other');
             const amount = parseFloat(document.getElementById('expense-amount').value.replace(/,/g, ''));
@@ -4345,15 +4578,17 @@
             const paymentMethodOtherInput = document.getElementById('expense-payment-method-other');
             const note = document.getElementById('expense-note').value.trim();
 
-            let actualCategory = categorySelect.value;
-            let actualPaymentMethod = paymentMethod;
+            let actualCategory = categorySelect.value; // The category to be stored
+            let actualPaymentMethod = paymentMethod; // The payment method to be stored
 
+            // Handle 'Other' category input
             if (actualCategory === 'other') {
                 actualCategory = categoryOtherInput.value.trim();
                 if (!actualCategory) {
                     showToast('Please specify the other category.', 'error');
                     return;
                 }
+                // Save the new category if it doesn't exist
                 if (!savedExpenseCategories[actualCategory]) {
                     savedExpenseCategories[actualCategory] = actualCategory;
                     try {
@@ -4361,13 +4596,14 @@
                     } catch (e) {
                         console.error("Error saving custom expense category:", e);
                     }
-                    addExpenseCategoryToSelect(actualCategory);
+                    addExpenseCategoryToSelect(actualCategory); // Add to dropdown
                 }
-            } else if (!actualCategory) {
+            } else if (!actualCategory) { // Ensure a category is selected or entered
                 showToast('Category is required.', 'error');
                 return;
             }
 
+            // Handle 'Other' payment method input
             if (actualPaymentMethod === 'Other') {
                 actualPaymentMethod = paymentMethodOtherInput.value.trim();
                 if (!actualPaymentMethod) {
@@ -4376,11 +4612,13 @@
                 }
             }
 
+            // Validation
             if (!date) { showToast('Date/Time is required.', 'error'); return; }
             if (isNaN(amount) || amount <= 0) { showToast('Amount must be a positive number.', 'error'); return; }
 
+            // Create the new expense entry object
             const newEntry = {
-                id: Date.now().toString(),
+                id: Date.now().toString(), // Unique ID for the entry
                 date,
                 type,
                 category: actualCategory,
@@ -4389,8 +4627,9 @@
                 note
             };
 
-            expenseEntries.unshift(newEntry);
+            expenseEntries.unshift(newEntry); // Add to the beginning of the array
 
+            // Save to localStorage
             try {
                 localStorage.setItem('moneyManager_expenseEntries', JSON.stringify(expenseEntries));
                 showToast('Expense/Income entry added successfully!');
@@ -4399,9 +4638,9 @@
                 showToast('Error saving entry', 'error');
             }
 
-            updateSummariesBasedOnCurrentView();
-            renderExpenseEntries();
-            clearExpenseForm();
+            updateSummariesBasedOnCurrentView(); // Update summaries on screen
+            renderExpenseEntries(); // Refresh the displayed list
+            clearExpenseForm(); // Clear the form
         }
 
         // Loads an expense entry into the form for editing
@@ -4412,6 +4651,7 @@
             }
             const entry = expenseEntries[index];
 
+            // Populate form fields
             document.getElementById('expense-date').value = entry.date;
             document.getElementById('expense-type').value = entry.type;
 
@@ -4419,20 +4659,23 @@
             const categoryOtherInput = document.getElementById('expense-category-other');
 
             let foundInSelect = false;
+            // Check if the category exists in the select dropdown
             for (let i = 0; i < categorySelect.options.length; i++) {
                 if (categorySelect.options[i].value === entry.category) {
                     categorySelect.value = entry.category;
-                    categoryOtherInput.style.display = 'none';
+                    categoryOtherInput.style.display = 'none'; // Hide 'Other' input
                     categoryOtherInput.value = '';
                     foundInSelect = true;
                     break;
                 }
             }
 
+            // If category not found in select (and it's not 'other'), treat it as custom
             if (!foundInSelect && entry.category !== 'other') {
                 categorySelect.value = 'other';
                 categoryOtherInput.value = entry.category;
                 categoryOtherInput.style.display = 'block';
+                // Save this new custom category if not already saved
                 if (!savedExpenseCategories[entry.category]) {
                     savedExpenseCategories[entry.category] = entry.category;
                     try {
@@ -4442,7 +4685,7 @@
                     }
                     addExpenseCategoryToSelect(entry.category);
                 }
-            } else if (entry.category === 'other') {
+            } else if (entry.category === 'other') { // If the stored category was 'other'
                 categorySelect.value = 'other';
                 categoryOtherInput.value = entry.category;
                 categoryOtherInput.style.display = 'block';
@@ -4450,26 +4693,30 @@
 
             document.getElementById('expense-amount').value = formatNumber(entry.amount);
             document.getElementById('expense-payment-method').value = entry.paymentMethod;
+
+            // Handle visibility of 'Other' payment method input
             const paymentMethodOtherInput = document.getElementById('expense-payment-method-other');
             if (entry.paymentMethod === 'Other') {
-                 paymentMethodOtherInput.value = entry.paymentMethod;
+                 paymentMethodOtherInput.value = entry.paymentMethod; // Populate if it was 'Other'
                  paymentMethodOtherInput.style.display = 'block';
             } else {
-                 paymentMethodOtherInput.style.display = 'none';
+                 paymentMethodOtherInput.style.display = 'none'; // Hide otherwise
             }
             document.getElementById('expense-note').value = entry.note || '';
 
+            // Update visibility states of related fields
             updateExpenseCategoryVisibility();
             updatePaymentMethodVisibility();
 
+            // Remove the entry from the list temporarily while editing
             expenseEntries.splice(index, 1);
             updateSummariesBasedOnCurrentView();
             renderExpenseEntries();
             showToast('Entry loaded for editing.');
-            window.scrollTo(0, 0);
+            window.scrollTo(0, 0); // Scroll to the form
         }
 
-        // Deletes an expense entry at the specified index
+        // Deletes an expense entry at the specified index after confirmation
         function deleteExpenseEntry(index) {
             if (index < 0 || index >= expenseEntries.length) {
                 showToast("Error deleting entry.", "error");
@@ -4477,40 +4724,45 @@
             }
 
             if (confirm('Are you sure you want to delete this entry?')) {
-                expenseEntries.splice(index, 1);
+                expenseEntries.splice(index, 1); // Remove the entry
                 try {
-                    localStorage.setItem('moneyManager_expenseEntries', JSON.stringify(expenseEntries));
+                    localStorage.setItem('moneyManager_expenseEntries', JSON.stringify(expenseEntries)); // Save changes
                     showToast('Entry deleted successfully');
                 } catch (e) {
                     showToast('Error saving changes after deletion', 'error');
                 }
-                updateSummariesBasedOnCurrentView();
-                renderExpenseEntries();
+                updateSummariesBasedOnCurrentView(); // Update summaries
+                renderExpenseEntries(); // Refresh list display
             }
         }
 
-        // Filters the expense entries based on selected criteria
+        // Filters the expense entries based on selected criteria (type, category, date)
         function filterExpenses() {
             const typeFilter = document.getElementById('expense-filter-type').value;
             const categoryFilter = document.getElementById('expense-filter-category').value.toLowerCase();
             const dateFilterValue = document.getElementById('expense-filter-date').value;
 
-            let filtered = expenseEntries;
+            let filtered = expenseEntries; // Start with all entries
 
+            // Apply type filter
             if (typeFilter !== 'all') {
                 filtered = filtered.filter(e => e.type === typeFilter);
             }
 
+            // Apply category filter (checks if category includes the filter text)
             if (categoryFilter) {
                 filtered = filtered.filter(e => e.category.toLowerCase().includes(categoryFilter));
             }
 
+            // Apply date filter
             if (dateFilterValue) {
                 try {
                     const filterDate = new Date(dateFilterValue);
                     filterDate.setHours(0, 0, 0, 0);
                     filtered = filtered.filter(e => {
                         const entryDate = new Date(e.date);
+                        if (isNaN(entryDate.getTime())) return false; // Skip invalid dates
+                        // Compare date parts
                         return entryDate.getFullYear() === filterDate.getFullYear() &&
                                entryDate.getMonth() === filterDate.getMonth() &&
                                entryDate.getDate() === filterDate.getDate();
@@ -4518,12 +4770,12 @@
                 } catch (e) {
                     console.error("Error applying date filter for expenses:", e);
                     showToast("Error applying date filter.", "error");
-                    filtered = [];
+                    filtered = []; // Clear filtered list on error
                 }
             }
 
-            renderExpenseEntries(filtered);
-            updateSummariesBasedOnCurrentView();
+            renderExpenseEntries(filtered); // Render the filtered list
+            updateSummariesBasedOnCurrentView(); // Update summaries
         }
 
         // Resets all expense filters to default and shows all entries
@@ -4531,11 +4783,11 @@
             document.getElementById('expense-filter-type').value = 'all';
             document.getElementById('expense-filter-category').value = '';
             document.getElementById('expense-filter-date').value = '';
-            renderExpenseEntries();
-            updateSummariesBasedOnCurrentView();
+            renderExpenseEntries(); // Show all entries
+            updateSummariesBasedOnCurrentView(); // Update summaries
         }
 
-        // Updates the daily summary section for the expense tab
+        // Updates the daily summary section for the expense tab (Income, Expense, Net)
         function updateExpenseSummaries() {
             const dailyIncomeSpan = document.getElementById('daily-total-income');
             const dailyExpenseSpan = document.getElementById('daily-total-expenses');
@@ -4544,12 +4796,14 @@
             let totalIncomeToday = 0;
             let totalExpenseToday = 0;
 
+            // Define today's date range
             const today = new Date();
             const startOfDay = new Date(today);
             startOfDay.setHours(0, 0, 0, 0);
             const endOfDay = new Date(today);
             endOfDay.setHours(23, 59, 59, 999);
 
+            // Iterate through expense entries and sum up today's income and expenses
             expenseEntries.forEach(entry => {
                 const entryDate = new Date(entry.date);
                 if (entryDate >= startOfDay && entryDate <= endOfDay) {
@@ -4562,13 +4816,16 @@
                 }
             });
 
+            // Update the UI with calculated values
             dailyIncomeSpan.textContent = formatNumber(totalIncomeToday);
             dailyExpenseSpan.textContent = formatNumber(totalExpenseToday);
             dailyNetSpan.textContent = formatNumber(totalIncomeToday - totalExpenseToday);
 
+            // Auto-expand the summary section if it contains data
             const summarySection = document.getElementById('expense').querySelector('.summary-section');
             if (summarySection) {
                 const hasData = (totalIncomeToday !== 0 || totalExpenseToday !== 0);
+                // Expand if data exists and section is collapsed, or collapse if no data and section is expanded
                 if (hasData && !summarySection.classList.contains('expanded')) {
                     toggleExpand(summarySection);
                 } else if (!hasData && summarySection.classList.contains('expanded')) {
@@ -4577,33 +4834,34 @@
             }
         }
 
-        // Updates the periodical summary section for the expense tab
+        // Updates the periodical summary section for the expense tab based on selected period (week, month, year)
         function updatePeriodicalExpenseSummaries() {
-            const periodType = document.getElementById('period-type').value;
+            const periodType = document.getElementById('period-type').value; // Get selected period type
             const today = new Date();
             let startDate, endDate;
 
+            // Calculate start and end dates based on period type
             switch (periodType) {
                 case 'week':
                     startDate = new Date(today);
-                    startDate.setDate(today.getDate() - today.getDay());
+                    startDate.setDate(today.getDate() - today.getDay()); // Start of week (Sunday)
                     startDate.setHours(0, 0, 0, 0);
-                    endDate = new Date(today);
+                    endDate = new Date(today); // End of week (today)
                     endDate.setHours(23, 59, 59, 999);
                     break;
                 case 'month':
-                    startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                    startDate = new Date(today.getFullYear(), today.getMonth(), 1); // First day of the month
                     startDate.setHours(0, 0, 0, 0);
-                    endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                    endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Last day of the month
                     endDate.setHours(23, 59, 59, 999);
                     break;
                 case 'year':
-                    startDate = new Date(today.getFullYear(), 0, 1);
+                    startDate = new Date(today.getFullYear(), 0, 1); // First day of the year
                     startDate.setHours(0, 0, 0, 0);
-                    endDate = new Date(today.getFullYear(), 11, 31);
+                    endDate = new Date(today.getFullYear(), 11, 31); // Last day of the year
                     endDate.setHours(23, 59, 59, 999);
                     break;
-                default:
+                default: // Default to today if period type is unknown
                     startDate = new Date(today);
                     startDate.setHours(0, 0, 0, 0);
                     endDate = new Date(today);
@@ -4614,6 +4872,7 @@
             let periodIncome = 0;
             let periodExpense = 0;
 
+            // Iterate through expense entries and sum up income/expenses within the period
             expenseEntries.forEach(entry => {
                 const entryDate = new Date(entry.date);
                 if (entryDate >= startDate && entryDate <= endDate) {
@@ -4626,6 +4885,7 @@
                 }
             });
 
+            // Update the UI with periodical summary values
             document.getElementById('periodical-total-income').textContent = formatNumber(periodIncome);
             document.getElementById('periodical-total-expenses').textContent = formatNumber(periodExpense);
             document.getElementById('periodical-net-balance').textContent = formatNumber(periodIncome - periodExpense);
@@ -4634,92 +4894,95 @@
         // Toggles the expanded/collapsed state of the expense list
         function toggleExpenseList() {
             const listContainer = document.getElementById('expense-list');
-            listContainer.classList.toggle('expanded');
+            listContainer.classList.toggle('expanded'); // Toggle the 'expanded' class
+            // If expanded and list is empty or shows 'no data', re-render it
             if (listContainer.classList.contains('expanded') && (listContainer.querySelector('.grouped-transaction') === null || listContainer.querySelector('.no-data'))) {
                 if (expenseEntries.length > 0) {
-                    renderExpenseEntries();
+                    renderExpenseEntries(); // Render if there are entries
                 }
             }
         }
 
         // --- HELPER FUNCTIONS FOR EXPENSE TAB UI ---
 
-        // Updates the visibility of the 'Other (Manual)' category input field
+        // Updates the visibility of the 'Other (Manual)' category input field based on the select value
         function updateExpenseCategoryVisibility() {
             const categorySelect = document.getElementById('expense-category');
             const categoryOtherInput = document.getElementById('expense-category-other');
 
             if (categorySelect.value === 'other') {
-                categoryOtherInput.style.display = 'block';
+                categoryOtherInput.style.display = 'block'; // Show input
                 categoryOtherInput.focus();
             } else {
-                categoryOtherInput.style.display = 'none';
-                categoryOtherInput.value = '';
+                categoryOtherInput.style.display = 'none'; // Hide input
+                categoryOtherInput.value = ''; // Clear input value
             }
         }
 
-        // Updates the visibility of the 'Other' payment method input field
+        // Updates the visibility of the 'Other' payment method input field based on the select value
         function updatePaymentMethodVisibility() {
             const paymentMethodSelect = document.getElementById('expense-payment-method');
             const paymentMethodOtherInput = document.getElementById('expense-payment-method-other');
 
             if (paymentMethodSelect.value === 'Other') {
-                paymentMethodOtherInput.style.display = 'block';
+                paymentMethodOtherInput.style.display = 'block'; // Show input
                 paymentMethodOtherInput.focus();
             } else {
-                paymentMethodOtherInput.style.display = 'none';
-                paymentMethodOtherInput.value = '';
+                paymentMethodOtherInput.style.display = 'none'; // Hide input
+                paymentMethodOtherInput.value = ''; // Clear input value
             }
         }
 
         // Clears and resets the expense form fields to their default states
         function clearExpenseForm() {
-            document.getElementById('expense-date').value = '';
-            updateDateTimeFields();
+            document.getElementById('expense-date').value = ''; // Clear date
+            updateDateTimeFields(); // Reset to current date/time
 
-            document.getElementById('expense-type').value = 'Expense';
+            document.getElementById('expense-type').value = 'Expense'; // Reset type
 
-            document.getElementById('expense-category').value = 'other';
-            document.getElementById('expense-category-other').value = '';
-            updateExpenseCategoryVisibility();
+            document.getElementById('expense-category').value = 'other'; // Reset category to 'other'
+            document.getElementById('expense-category-other').value = ''; // Clear custom category input
+            updateExpenseCategoryVisibility(); // Update visibility of 'Other' input
 
-            document.getElementById('expense-amount').value = '';
-            document.getElementById('expense-payment-method').value = 'E-Money';
-            document.getElementById('expense-payment-method-other').value = '';
-            updatePaymentMethodVisibility();
-
-            document.getElementById('expense-note').value = '';
+            document.getElementById('expense-amount').value = ''; // Clear amount
+            document.getElementById('expense-payment-method').value = 'E-Money'; // Reset payment method
+            document.getElementById('expense-payment-method-other').value = ''; // Clear custom payment method input
+            updatePaymentMethodVisibility(); // Update visibility of 'Other' payment method input
         }
 
         // Renders the expense entries list, optionally filtered
         function renderExpenseEntries(filteredEntries = null) {
             const listContainer = document.getElementById('expense-list').querySelector('.transaction-list-items');
-            listContainer.innerHTML = '';
+            listContainer.innerHTML = ''; // Clear the list
 
-            const entriesToShow = filteredEntries !== null ? filteredEntries : expenseEntries;
+            const entriesToShow = filteredEntries !== null ? filteredEntries : expenseEntries; // Use filtered list if provided
 
             if (entriesToShow.length === 0) {
-                listContainer.innerHTML += '<p class="no-data">No expense/income entries found.</p>';
+                listContainer.innerHTML += '<p class="no-data">No expense/income entries found.</p>'; // Display message if no data
                 return;
             }
 
+            // Group entries by date for better readability
             const groupedEntries = {};
             entriesToShow.forEach((entry, index) => {
-                const dateKey = new Date(entry.date).toISOString().split('T')[0];
+                const dateKey = new Date(entry.date).toISOString().split('T')[0]; // Date for grouping
                 if (!groupedEntries[dateKey]) {
                     groupedEntries[dateKey] = {
-                        items: [],
-                        totalAmount: 0,
-                        type: entry.type
+                        items: [], // Store entries for this date
+                        totalAmount: 0, // Sum of amounts for the day
+                        type: entry.type // Type of the entries (Income/Expense)
                     };
                 }
+                // Find original index for edit/delete operations
                 const originalIndex = expenseEntries.findIndex(e => e.id === entry.id && e.date === entry.date);
-                groupedEntries[dateKey].items.push({ ...entry, originalIndex: originalIndex });
-                groupedEntries[dateKey].totalAmount += parseFloat(entry.amount);
+                groupedEntries[dateKey].items.push({ ...entry, originalIndex: originalIndex }); // Add entry with original index
+                groupedEntries[dateKey].totalAmount += parseFloat(entry.amount); // Add amount to daily total
             });
 
+            // Sort dates descending
             const sortedDates = Object.keys(groupedEntries).sort().reverse();
 
+            // Render each day's group
             for (const dateKey of sortedDates) {
                 const groupData = groupedEntries[dateKey];
                 const displayDate = new Date(dateKey).toDateString();
@@ -4727,6 +4990,7 @@
                 const groupElement = document.createElement('div');
                 groupElement.className = 'grouped-transaction';
 
+                // Create HTML structure for the group
                 groupElement.innerHTML = `
                     <div class="group-header" onclick="toggleGroup(this.parentElement)">
                         <span>${displayDate}</span>
@@ -4734,7 +4998,14 @@
                     </div>
                     <div class="group-details">
                         ${groupData.items.map(item => {
-                            const amountClass = item.type === 'Income' ? 'positive' : 'negative';
+                            const amountClass = item.type === 'Income' ? 'positive' : 'negative'; // Style amount based on type
+                            // Generate details HTML (payment method, note)
+                            let detailsHtml = '';
+                            detailsHtml += `<span class="transaction-info-item"><strong>Method:</strong> ${item.paymentMethod}</span>`;
+                            if (item.note) {
+                                const truncatedNote = item.note.length > 50 ? item.note.substring(0, 50) + '...' : item.note; // Truncate long notes
+                                detailsHtml += `<span class="transaction-info-item"><strong>Note:</strong> ${truncatedNote}</span>`;
+                            }
                             return `
                                 <div class="transaction-item">
                                     <div class="transaction-header">
@@ -4743,8 +5014,7 @@
                                     </div>
                                     <div class="transaction-details-mobile">
                                         <span class="transaction-date">${new Date(item.date).toLocaleTimeString()}</span>
-                                        <span class="transaction-info-item"><strong>Method:</strong> ${item.paymentMethod}</span>
-                                        ${item.note ? `<span class="transaction-info-item"><strong>Note:</strong> ${item.note.length > 50 ? item.note.substring(0, 50) + '...' : item.note}</span>` : ''}
+                                        ${detailsHtml}
                                     </div>
                                     <div class="transaction-actions">
                                         <button class="action-button-text edit" onclick="editExpenseEntry(${item.originalIndex})">Edit</button>
@@ -4755,36 +5025,24 @@
                         }).join('')}
                     </div>
                 `;
-                listContainer.appendChild(groupElement);
+                listContainer.appendChild(groupElement); // Add the group to the list
             }
         }
 
         // Toggles the expanded/collapsed state of the expense list
         function toggleExpenseList() {
             const listContainer = document.getElementById('expense-list');
-            listContainer.classList.toggle('expanded');
+            listContainer.classList.toggle('expanded'); // Toggle the 'expanded' class
+            // If expanded and list is empty or shows 'no data', re-render it
             if (listContainer.classList.contains('expanded') && (listContainer.querySelector('.grouped-transaction') === null || listContainer.querySelector('.no-data'))) {
                 if (expenseEntries.length > 0) {
-                    renderExpenseEntries();
+                    renderExpenseEntries(); // Render the list if there are entries
                 }
             }
         }
 
-        // --- SERVICE WORKER REGISTRATION ---
-        // Register the service worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js')
-                    .then(registration => {
-                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                    })
-                    .catch(error => {
-                        console.log('ServiceWorker registration failed: ', error);
-                    });
-            });
-        }
-
         // --- SAVE DATA ON PAGE UNLOAD ---
+        // Ensure data is saved when the user navigates away or closes the tab
         window.addEventListener('beforeunload', saveData);
 
     </script>
