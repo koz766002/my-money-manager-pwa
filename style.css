@@ -1,0 +1,1353 @@
+/* --- Color Palette and Typography --- */
+        :root {
+            --primary: #007bff; /* Bootstrap primary blue */
+            --primary-dark: #0056b3; /* Darker shade of primary */
+            --secondary: #6c757d; /* Bootstrap secondary gray */
+            --danger: #dc3545; /* Bootstrap danger red */
+            --light-gray: #f8f9fa; /* Very light gray for backgrounds */
+            --medium-gray: #e9ecef; /* Light gray for borders and dividers */
+            --dark-gray: #495057; /* Dark gray for secondary text */
+            --text: #212529; /* Bootstrap primary text color */
+            --text-light: #6c757d; /* Lighter text color */
+            --positive: #28a745; /* Bootstrap success green */
+            --negative: #dc3545; /* Bootstrap danger red */
+            --card-background: #ffffff; /* White background for cards and content blocks */
+            --input-border-color: #ced4da; /* Standard input border color */
+            --input-focus-border-color: var(--primary); /* Primary color on input focus */
+            --button-hover-bg: var(--primary-dark); /* Darker primary on button hover */
+            --transition-fast: 0.2s ease-in-out; /* Fast transition for smooth effects */
+            --modal-background: rgba(0, 0, 0, 0.8); /* Semi-transparent dark background for modals */
+            --border-radius-default: 6px; /* Standard border radius */
+            --border-radius-large: 10px; /* Larger border radius for main containers */
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.1); /* Small shadow for subtle depth */
+            --shadow-md: 0 2px 5px rgba(0,0,0,0.15); /* Medium shadow for cards and headers */
+            --dark-mode-bg: #1a1a1a; /* Dark mode background */
+            --dark-mode-card-bg: #2c2c2c; /* Dark mode card background */
+            --dark-mode-text: #e0e0e0; /* Dark mode text color */
+            --dark-mode-primary: #4dabf7; /* Lighter blue for dark mode */
+            --dark-mode-primary-dark: #228be6; /* Darker blue for dark mode */
+            --dark-mode-secondary: #868e96; /* Dark mode secondary gray */
+            --dark-mode-border-color: #495057; /* Dark mode input border */
+            --dark-mode-input-focus-border-color: var(--dark-mode-primary);
+            --dark-mode-button-hover-bg: var(--dark-mode-primary-dark);
+        }
+
+        /* --- Global Reset and Base Styles --- */
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent; /* Removes tap highlight on mobile */
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--light-gray); /* Light background for the entire page */
+            color: var(--text); /* Default text color */
+            line-height: 1.5; /* Comfortable line spacing */
+            overflow-x: hidden; /* Prevent horizontal scrolling */
+            font-size: 14px; /* Base font size, can be adjusted */
+            transition: background-color var(--transition-fast), color var(--transition-fast);
+        }
+
+        body.dark-mode {
+            background-color: var(--dark-mode-bg);
+            color: var(--dark-mode-text);
+        }
+
+        /* --- Lock Screen Styles --- */
+        #lock-screen-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--modal-background); /* Dimmed background */
+            color: white; /* Text color for lock screen */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000; /* Ensure it's on top of everything */
+            opacity: 0; /* Initially hidden */
+            visibility: hidden; /* Initially not interactive */
+            transition: opacity var(--transition-fast); /* Smooth fade effect */
+            backdrop-filter: blur(5px); /* Apply blur effect to the background behind the overlay */
+            -webkit-backdrop-filter: blur(5px); /* For Safari compatibility */
+        }
+
+        #lock-screen-overlay.visible {
+            opacity: 1; /* Make visible */
+            visibility: visible; /* Make interactive */
+        }
+
+        #lock-screen-content {
+            text-align: center;
+            background-color: rgba(255, 255, 255, 0.1); /* Slightly translucent white background */
+            padding: 20px;
+            border-radius: var(--border-radius-large); /* Rounded corners */
+            width: 90%;
+            max-width: 350px; /* Max width for content */
+            box-shadow: 0 0 15px rgba(0,0,0,0.3); /* Shadow for depth */
+        }
+
+        body.dark-mode #lock-screen-content {
+             background-color: rgba(44, 44, 44, 0.4); /* Darker translucent background for dark mode */
+             box-shadow: 0 0 15px rgba(0,0,0,0.7); /* Darker shadow for dark mode */
+        }
+
+        #lock-screen-title {
+            font-size: 1.8rem; /* Large font size for title */
+            margin-bottom: 15px;
+            font-weight: 600; /* Bold */
+            color: white; /* White text */
+        }
+
+        #lock-screen-message {
+            font-size: 1rem; /* Standard font size for message */
+            margin-bottom: 20px;
+            color: rgba(255, 255, 255, 0.9); /* Slightly transparent white */
+        }
+
+        #lock-screen-pin-input {
+            font-size: 1.8rem; /* Large font for PIN display */
+            letter-spacing: 10px; /* Space between PIN digits */
+            padding: 12px 15px;
+            border: 2px solid var(--primary); /* Primary colored border */
+            border-radius: var(--border-radius-default);
+            background-color: transparent; /* Transparent background */
+            color: white; /* White text */
+            width: 100%;
+            max-width: 200px; /* Fixed width for PIN input */
+            text-align: center;
+            margin-bottom: 15px;
+            caret-color: transparent; /* Hide caret */
+        }
+
+        body.dark-mode #lock-screen-pin-input {
+            border-color: var(--dark-mode-primary); /* Dark mode primary border */
+        }
+
+        #lock-screen-keyboard {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #lock-screen-keyboard .key-row {
+            display: flex;
+            justify-content: center; /* Center keys horizontally */
+            margin-bottom: 10px;
+        }
+
+        #lock-screen-keyboard button {
+            width: 60px;
+            height: 60px;
+            font-size: 1.5rem; /* Large font for key numbers */
+            background-color: rgba(255, 255, 255, 0.1); /* Translucent white keys */
+            color: white;
+            border: none;
+            border-radius: 50%; /* Circular buttons */
+            margin: 0 5px; /* Spacing between keys */
+            display: flex;
+            align-items: center;
+            justify-content: center; /* Center content within button */
+            cursor: pointer;
+        }
+
+        body.dark-mode #lock-screen-keyboard button {
+            background-color: rgba(255, 255, 255, 0.1); /* Keep translucency for dark mode */
+            color: var(--dark-mode-text); /* Dark mode text color */
+        }
+
+        #lock-screen-keyboard button:active {
+            background-color: rgba(255, 255, 255, 0.2); /* Slightly darker on press */
+        }
+
+        #lock-screen-keyboard .key-delete {
+            background-color: var(--danger); /* Red background for delete key */
+        }
+
+        #lock-screen-keyboard .key-delete:active {
+            background-color: #c82333; /* Darker red on press */
+        }
+
+        #lock-screen-error-message {
+            color: #ffc107; /* Warning yellow for errors */
+            min-height: 20px; /* Reserve space for error message */
+            margin: 10px 0;
+            font-size: 0.9rem;
+        }
+
+        #lock-screen-footer {
+            margin-top: 20px; /* Space above footer */
+            font-size: 0.8rem; /* Smaller font size for footer */
+            color: rgba(255, 255, 255, 0.7); /* Slightly transparent white */
+        }
+
+        /* --- Main Layout and Navigation --- */
+        .container {
+            width: 100%;
+            margin: 0 auto; /* Center the container */
+            padding: 10px; /* Padding around the content */
+            background-color: var(--card-background); /* White background */
+            transition: background-color var(--transition-fast);
+        }
+
+        body.dark-mode .container {
+            background-color: var(--dark-mode-card-bg); /* Dark mode card background */
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); /* Gradient header background */
+            color: white; /* White text for header */
+            padding: 20px 15px;
+            border-radius: var(--border-radius-large); /* Rounded corners */
+            box-shadow: var(--shadow-md); /* Medium shadow */
+        }
+
+        body.dark-mode .header {
+            background: linear-gradient(135deg, var(--dark-mode-primary) 0%, var(--dark-mode-primary-dark) 100%); /* Dark mode gradient */
+        }
+
+        .header h1 {
+            font-weight: 600; /* Semi-bold */
+            margin-bottom: 10px;
+            font-size: 1.8rem; /* Large font for title */
+        }
+
+        .header p {
+            font-size: 1rem; /* Standard font size for subtitle */
+            opacity: 0.9; /* Slightly transparent */
+        }
+
+        /* --- Tab Styles --- */
+        .tabs-container, .tabs-container-bottom {
+            display: flex; /* Use flexbox for tab layout */
+            justify-content: space-around; /* Distribute tabs evenly */
+            gap: 8px; /* Spacing between tabs */
+            margin-bottom: 15px; /* Space below tabs */
+            padding: 0 5px; /* Add some horizontal padding */
+        }
+
+        .tabs-container-bottom {
+            justify-content: center; /* Center bottom tabs */
+        }
+
+        .tab {
+            flex: 1; /* Allow tabs to grow and fill space */
+            padding: 15px 10px; /* Larger padding for tabs */
+            cursor: pointer; /* Indicate clickable element */
+            text-align: center; /* Center text */
+            font-weight: 500; /* Medium font weight */
+            color: var(--dark-gray); /* Dark gray text */
+            background-color: var(--light-gray); /* Light gray background */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            box-shadow: var(--shadow-sm); /* Small shadow */
+            transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast); /* Smooth transitions */
+            font-size: 0.9rem; /* Slightly larger font for tabs */
+            white-space: nowrap; /* Prevent text wrapping */
+            border-bottom: 3px solid transparent; /* Transparent border for active indicator */
+        }
+
+        body.dark-mode .tab {
+            color: var(--dark-mode-text); /* Dark mode text */
+            background-color: var(--dark-mode-card-bg); /* Dark mode background for tabs */
+        }
+
+        .tab.active {
+            color: var(--primary); /* Primary color for active tab text */
+            background-color: var(--card-background); /* White background for active tab */
+            border-bottom-color: var(--primary); /* Primary border color as indicator */
+            box-shadow: var(--shadow-md); /* Slightly larger shadow for active tab */
+        }
+
+        body.dark-mode .tab.active {
+            color: var(--dark-mode-primary); /* Dark mode primary color for active tab */
+            background-color: var(--dark-mode-card-bg); /* Keep dark mode background */
+            border-bottom-color: var(--dark-mode-primary); /* Dark mode primary border */
+            box-shadow: var(--shadow-md); /* Maintain shadow */
+        }
+
+        .tab:hover {
+            background-color: var(--medium-gray); /* Light gray hover effect */
+            color: var(--primary); /* Primary color on hover */
+        }
+
+        body.dark-mode .tab:hover {
+            background-color: var(--dark-mode-secondary); /* Darker hover for dark mode */
+            color: var(--dark-mode-primary);
+        }
+
+        .tab.active:hover {
+            background-color: var(--card-background); /* Maintain white background for active tab on hover */
+        }
+
+        body.dark-mode .tab.active:hover {
+            background-color: var(--dark-mode-card-bg); /* Maintain dark mode background */
+        }
+
+        .tab-content {
+            display: none; /* Hide content by default */
+            padding: 15px;
+            background-color: var(--card-background); /* White background */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            transition: opacity var(--transition-fast); /* For potential future animations */
+        }
+
+        body.dark-mode .tab-content {
+            background-color: var(--dark-mode-card-bg); /* Dark mode card background */
+        }
+
+        .tab-content.active {
+            display: block; /* Show active tab content */
+        }
+
+        /* --- Card Styles --- */
+        .card-container {
+            display: grid; /* Use grid for card layout */
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* Responsive columns */
+            gap: 10px; /* Spacing between cards */
+            margin-bottom: 15px; /* Space below card container */
+        }
+
+        .card {
+            background: var(--card-background); /* White background */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            box-shadow: var(--shadow-sm); /* Small shadow */
+            padding: 15px; /* Padding inside card */
+            text-align: center; /* Center content */
+            border: 1px solid var(--medium-gray); /* Light gray border */
+        }
+
+        body.dark-mode .card {
+            background-color: var(--dark-mode-card-bg); /* Dark mode card background */
+            border-color: var(--dark-mode-border-color); /* Dark mode border */
+        }
+
+        .card h3 {
+            font-size: 0.9rem; /* Small font size for card title */
+            color: var(--dark-gray); /* Dark gray text */
+            margin-bottom: 8px;
+            font-weight: 500; /* Medium font weight */
+        }
+
+        body.dark-mode .card h3 {
+            color: var(--dark-mode-secondary); /* Dark mode secondary text */
+        }
+
+        .card-amount {
+            font-size: 1.4rem; /* Larger font size for amounts */
+            font-weight: 600; /* Semi-bold */
+        }
+
+        /* --- Form Section Styles --- */
+        .form-section {
+            background: var(--card-background); /* White background */
+            padding: 15px;
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            margin-bottom: 15px; /* Space below section */
+            box-shadow: var(--shadow-sm); /* Small shadow */
+            border: 1px solid var(--medium-gray); /* Light gray border */
+        }
+
+        body.dark-mode .form-section {
+            background-color: var(--dark-mode-card-bg); /* Dark mode card background */
+            border-color: var(--dark-mode-border-color); /* Dark mode border */
+        }
+
+        .form-section h2, .form-section h3 {
+            margin-bottom: 15px; /* Space below section titles */
+            color: var(--primary); /* Primary color for titles */
+            font-weight: 600; /* Semi-bold */
+            font-size: 1.3rem; /* Larger font for section titles */
+        }
+
+        body.dark-mode .form-section h2,
+        body.dark-mode .form-section h3 {
+            color: var(--dark-mode-primary); /* Dark mode primary color for titles */
+        }
+
+        .form-group {
+            margin-bottom: 15px; /* Space between form groups */
+        }
+
+        .form-group label {
+            display: block; /* Label on its own line */
+            margin-bottom: 8px;
+            font-weight: 500; /* Medium font weight */
+            color: var(--text); /* Default text color */
+        }
+
+        body.dark-mode .form-group label {
+            color: var(--dark-mode-text); /* Dark mode text */
+        }
+
+        /* Input and select styling */
+        input[type="text"],
+        input[type="password"],
+        input[type="datetime-local"],
+        input[type="date"],
+        select,
+        textarea {
+            width: 100%; /* Full width */
+            padding: 12px; /* Padding inside inputs */
+            border: 1px solid var(--input-border-color); /* Default border color */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            font-size: 1rem; /* Standard font size */
+            transition: border-color var(--transition-fast); /* Smooth border transition on focus */
+            color: var(--text); /* Input text color */
+            background-color: var(--card-background); /* White background */
+        }
+
+        body.dark-mode input[type="text"],
+        body.dark-mode input[type="password"],
+        body.dark-mode input[type="datetime-local"],
+        body.dark-mode input[type="date"],
+        body.dark-mode select,
+        body.dark-mode textarea {
+            border-color: var(--dark-mode-border-color); /* Dark mode border color */
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+            color: var(--dark-mode-text); /* Dark mode text */
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none; /* Remove default outline */
+            border-color: var(--input-focus-border-color); /* Highlight with primary color */
+        }
+
+        body.dark-mode input:focus,
+        body.dark-mode select:focus,
+        body.dark-mode textarea:focus {
+            border-color: var(--dark-mode-input-focus-border-color); /* Dark mode focus border */
+        }
+
+        select {
+            appearance: none; /* Remove default browser styling */
+            /* Add custom dropdown arrow */
+            background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="%236c757d"><path d="M7.293 10.293a1 1 0 0 1 1.414 0L10.5 12.586l2.293-2.293a1 1 0 0 1 1.414 1.414l-3.5 3.5a1 1 0 0 1-1.414 0l-3.5-3.5a1 1 0 0 1 0-1.414z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 12px top 50%; /* Position arrow */
+            background-size: 16px; /* Size of the arrow */
+            padding-right: 35px; /* Space for the arrow */
+        }
+
+        body.dark-mode select {
+            background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="%23e0e0e0"><path d="M7.293 10.293a1 1 0 0 1 1.414 0L10.5 12.586l2.293-2.293a1 1 0 0 1 1.414 1.414l-3.5 3.5a1 1 0 0 1-1.414 0l-3.5-3.5a1 1 0 0 1 0-1.414z"/></svg>'); /* Dark mode arrow */
+        }
+
+        /* Handle 'Other' inputs for select fields */
+        .form-group input[type="text"][style*="display: block;"] {
+            margin-top: 10px; /* Add margin if it's displayed */
+        }
+
+        /* Button styling */
+        button {
+            background-color: var(--primary); /* Primary button color */
+            color: white; /* White text */
+            border: none; /* No border */
+            padding: 12px 20px; /* Padding */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            cursor: pointer; /* Indicate clickable */
+            font-size: 1rem; /* Standard font size */
+            font-weight: 500; /* Medium weight */
+            transition: background-color var(--transition-fast); /* Smooth hover effect */
+            display: inline-flex; /* Align items nicely */
+            align-items: center;
+            justify-content: center;
+            gap: 8px; /* Space between icon and text */
+            width: 100%; /* Full width by default */
+            margin-bottom: 10px; /* Space below button */
+        }
+
+        body.dark-mode button {
+            background-color: var(--dark-mode-primary); /* Dark mode primary color */
+        }
+
+        button:active {
+            background-color: var(--button-hover-bg); /* Darker color on press */
+        }
+
+        body.dark-mode button:active {
+            background-color: var(--dark-mode-button-hover-bg); /* Dark mode active color */
+        }
+
+        button.secondary {
+            background-color: white; /* White background */
+            color: var(--primary); /* Primary text color */
+            border: 1px solid var(--primary); /* Primary border */
+        }
+
+        body.dark-mode button.secondary {
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+            color: var(--dark-mode-primary); /* Dark mode primary text */
+            border-color: var(--dark-mode-primary); /* Dark mode primary border */
+        }
+
+        button.secondary:active {
+            background-color: var(--light-gray); /* Light gray on press */
+        }
+
+        body.dark-mode button.secondary:active {
+            background-color: var(--dark-mode-secondary); /* Dark mode secondary hover */
+        }
+
+
+        button.danger {
+            background-color: var(--danger); /* Danger color */
+        }
+
+        button.danger:active {
+            background-color: #c82333; /* Darker danger red on press */
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column; /* Stack buttons vertically by default */
+            gap: 10px; /* Space between buttons */
+            margin-top: 15px; /* Space above the group */
+        }
+
+        /* --- Transaction List Styles --- */
+        .transaction-list {
+            margin-top: 15px; /* Space above the list */
+        }
+
+        .transaction-list h2, .summary-section h2 {
+            margin-bottom: 10px; /* Space below section titles */
+            color: var(--primary); /* Primary color for titles */
+            font-weight: 600; /* Semi-bold */
+            cursor: pointer; /* Indicate clickable */
+            display: flex; /* Use flexbox for alignment */
+            justify-content: space-between; /* Space out title and arrow */
+            align-items: center; /* Vertically align items */
+            padding: 12px 15px; /* Padding */
+            background-color: var(--card-background); /* White background */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            box-shadow: var(--shadow-sm); /* Small shadow */
+            border: 1px solid var(--medium-gray); /* Light gray border */
+            font-size: 1.1rem; /* Larger font size */
+        }
+
+        body.dark-mode .transaction-list h2,
+        body.dark-mode .summary-section h2 {
+            color: var(--dark-mode-primary); /* Dark mode primary color */
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+            border-color: var(--dark-mode-border-color); /* Dark mode border */
+        }
+
+        .transaction-list h2 .arrow, .summary-section h2 .arrow {
+            transition: transform var(--transition-fast); /* Smooth rotation for arrow */
+            font-size: 0.9rem; /* Smaller font size for arrow */
+        }
+
+        .transaction-list.expanded h2 .arrow, .summary-section.expanded h2 .arrow {
+            transform: rotate(180deg); /* Rotate arrow when expanded */
+        }
+
+        .transaction-list-items, .summary-list {
+            display: none; /* Hide content by default */
+            margin-top: 10px; /* Space above content */
+        }
+
+        .transaction-list.expanded .transaction-list-items, .summary-section.expanded .summary-list {
+            display: block; /* Show content when expanded */
+        }
+
+        .grouped-transaction {
+            margin-bottom: 15px; /* Space between date groups */
+            background-color: var(--card-background); /* White background */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            box-shadow: var(--shadow-sm); /* Small shadow */
+            overflow: hidden; /* Hide overflow content */
+            border: 1px solid var(--medium-gray); /* Light gray border */
+        }
+
+        body.dark-mode .grouped-transaction {
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+            border-color: var(--dark-mode-border-color); /* Dark mode border */
+        }
+
+        .group-header {
+            background-color: var(--light-gray); /* Light gray background */
+            padding: 12px 15px; /* Padding */
+            display: flex;
+            justify-content: space-between; /* Space out date and summary */
+            align-items: center;
+            cursor: pointer; /* Indicate clickable */
+            font-weight: 500; /* Medium font weight */
+            border-left: 4px solid var(--primary); /* Primary accent on the left */
+            font-size: 0.9rem; /* Small font size */
+        }
+
+        body.dark-mode .group-header {
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+            border-left-color: var(--dark-mode-primary); /* Dark mode accent */
+            color: var(--dark-mode-text); /* Dark mode text */
+        }
+
+        .group-header span:last-child {
+            font-size: 0.8rem; /* Smaller font for summary text */
+            color: var(--dark-gray); /* Dark gray text */
+        }
+
+        body.dark-mode .group-header span:last-child {
+            color: var(--dark-mode-secondary); /* Dark mode secondary text */
+        }
+
+        .transaction-item {
+            background-color: var(--card-background); /* White background */
+            padding: 12px 15px; /* Padding */
+            margin: 0 0 10px 0; /* Margin below each item */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            position: relative; /* For positioning actions */
+            border-left: 4px solid var(--primary); /* Primary accent */
+            border: 1px solid var(--medium-gray); /* Light gray border */
+            transition: background-color var(--transition-fast); /* Smooth hover effect */
+        }
+
+        body.dark-mode .transaction-item {
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+            border-color: var(--dark-mode-border-color); /* Dark mode border */
+            border-left-color: var(--dark-mode-primary); /* Dark mode accent */
+        }
+
+        .transaction-item:last-child {
+            margin-bottom: 0; /* No bottom margin for the last item */
+        }
+
+        /* Style for hovered item */
+        .transaction-item:hover, .transaction-item.hovered {
+            background-color: var(--light-gray); /* Light gray on hover */
+        }
+        body.dark-mode .transaction-item:hover, body.dark-mode .transaction-item.hovered {
+            background-color: var(--dark-mode-secondary); /* Darker hover for dark mode */
+        }
+
+
+        .transaction-item.active { /* Style for selected transaction item */
+            border-left-color: var(--dark-mode-primary); /* Example: change border color when active */
+            box-shadow: var(--shadow-md); /* Example: add shadow when active */
+        }
+
+        .transaction-header {
+            display: flex;
+            justify-content: space-between; /* Space out type and amount */
+            margin-bottom: 8px;
+            align-items: center;
+        }
+
+        .transaction-type {
+            font-weight: 500; /* Medium font weight */
+            color: var(--primary); /* Primary color */
+            font-size: 0.9rem; /* Small font size */
+        }
+
+        body.dark-mode .transaction-type {
+            color: var(--dark-mode-primary); /* Dark mode primary color */
+        }
+
+        .transaction-amount {
+            font-weight: 600; /* Semi-bold */
+            font-size: 1rem; /* Standard font size */
+        }
+
+        .transaction-amount.positive { color: var(--positive); } /* Green for positive */
+        .transaction-amount.negative { color: var(--negative); } /* Red for negative */
+
+        .transaction-details-mobile {
+            font-size: 0.8rem; /* Small font size */
+            color: var(--dark-gray); /* Dark gray text */
+            display: flex;
+            flex-direction: column; /* Stack details vertically */
+            gap: 4px; /* Spacing between detail lines */
+        }
+
+        body.dark-mode .transaction-details-mobile {
+            color: var(--dark-mode-secondary); /* Dark mode secondary text */
+        }
+
+        .transaction-info-line {
+            display: flex;
+            gap: 10px; /* Spacing between info items */
+            flex-wrap: wrap; /* Allow wrapping on small screens */
+        }
+
+        .transaction-info-line span {
+            white-space: nowrap; /* Prevent wrapping within a detail */
+        }
+
+        .transaction-info-item {
+            display: inline; /* Display as inline elements */
+        }
+
+        .transaction-actions {
+            display: flex; /* Arrange buttons horizontally */
+            justify-content: flex-end; /* Align to the right */
+            gap: 8px; /* Spacing between buttons */
+            margin-top: 10px; /* Space above buttons */
+            opacity: 0; /* Initially hidden */
+            visibility: hidden; /* Initially hidden */
+            transition: opacity var(--transition-fast), visibility var(--transition-fast); /* Smooth fade effect */
+        }
+
+        /* Show actions on hover or when item is marked hovered */
+        .transaction-item:hover .transaction-actions,
+        .transaction-item.hovered .transaction-actions {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .action-button-text {
+            padding: 6px 10px; /* Padding for buttons */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            font-weight: 500; /* Medium weight */
+            font-size: 0.8rem; /* Small font size */
+            display: inline-flex; /* Align icon and text */
+            align-items: center;
+            gap: 5px; /* Space between icon and text */
+            text-decoration: none; /* Remove underline for text buttons */
+            border: none; /* Remove default button border */
+            cursor: pointer;
+        }
+
+        .action-button-text.edit {
+            background-color: var(--primary); /* Primary color */
+            color: white; /* White text */
+        }
+
+        body.dark-mode .action-button-text.edit {
+            background-color: var(--dark-mode-primary); /* Dark mode primary */
+        }
+
+        .action-button-text.delete {
+            background-color: var(--danger); /* Danger color */
+            color: white; /* White text */
+        }
+
+        /* --- Summary Section --- */
+        .summary-section {
+            background: var(--card-background); /* White background */
+            padding: 15px;
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            margin-top: 15px; /* Space above section */
+            box-shadow: var(--shadow-sm); /* Small shadow */
+            border: 1px solid var(--medium-gray); /* Light gray border */
+        }
+
+        body.dark-mode .summary-section {
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+            border-color: var(--dark-mode-border-color); /* Dark mode border */
+        }
+
+        .summary-list {
+            display: none; /* Hide content by default */
+            margin-top: 10px; /* Space above list */
+        }
+
+        .summary-section.expanded .summary-list {
+            display: block; /* Show content when expanded */
+        }
+
+        .summary-item {
+            display: flex; /* Align items horizontally */
+            justify-content: space-between; /* Space out label and value */
+            padding: 10px 0; /* Padding */
+            border-bottom: 1px solid var(--medium-gray); /* Light gray divider */
+            font-size: 0.9rem; /* Small font size */
+        }
+
+        body.dark-mode .summary-item {
+            border-bottom-color: var(--dark-mode-border-color); /* Dark mode border */
+        }
+
+        .summary-item:last-child {
+            border-bottom: none; /* No border for the last item */
+        }
+
+        .summary-label {
+            font-weight: 500; /* Medium font weight */
+            color: var(--dark-gray); /* Dark gray text */
+        }
+
+        body.dark-mode .summary-label {
+            color: var(--dark-mode-secondary); /* Dark mode secondary text */
+        }
+
+        /* --- Filter Section --- */
+        .filter-section {
+            display: flex; /* Use flexbox for filter controls */
+            flex-direction: column; /* Stack controls vertically by default */
+            gap: 10px; /* Spacing between controls */
+            margin-bottom: 15px; /* Space below filter section */
+            padding: 15px;
+            background-color: var(--card-background); /* White background */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            box-shadow: var(--shadow-sm); /* Small shadow */
+            border: 1px solid var(--medium-gray); /* Light gray border */
+        }
+
+        body.dark-mode .filter-section {
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+            border-color: var(--dark-mode-border-color); /* Dark mode border */
+        }
+
+        .filter-section button {
+            margin-bottom: 0; /* Remove default bottom margin from buttons in filter */
+        }
+
+        /* --- Input Field Enhancements --- */
+        .phone-input {
+            position: relative;
+        }
+
+        .phone-input input {
+            padding-left: 12px; /* Default padding */
+        }
+
+        /* --- Backup Section --- */
+        .backup-section {
+            background: var(--card-background); /* White background */
+            padding: 15px;
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            margin-top: 15px; /* Space above section */
+            box-shadow: var(--shadow-sm); /* Small shadow */
+            border: 1px solid var(--medium-gray); /* Light gray border */
+        }
+
+        body.dark-mode .backup-section {
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+            border-color: var(--dark-mode-border-color); /* Dark mode border */
+        }
+
+        .backup-textarea {
+            width: 100%;
+            min-height: 120px; /* Minimum height */
+            padding: 12px;
+            border: 1px solid var(--input-border-color); /* Default border */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            font-family: monospace; /* Monospaced font for code-like text */
+            margin-bottom: 15px; /* Space below textarea */
+            resize: vertical; /* Allow vertical resizing */
+            font-size: 0.8rem; /* Small font size */
+        }
+
+        body.dark-mode .backup-textarea {
+            border-color: var(--dark-mode-border-color); /* Dark mode border */
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+            color: var(--dark-mode-text); /* Dark mode text */
+        }
+
+        /* --- Toast Notification --- */
+        .toast {
+            position: fixed; /* Fixed position */
+            bottom: 20px; /* Position at the bottom */
+            left: 50%; /* Center horizontally */
+            transform: translateX(-50%) translateY(50px); /* Start off-screen below */
+            background-color: var(--primary); /* Default primary color */
+            color: white; /* White text */
+            padding: 12px 20px; /* Padding */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            box-shadow: var(--shadow-md); /* Medium shadow */
+            opacity: 0; /* Initially invisible */
+            transition: opacity var(--transition-fast), transform var(--transition-fast); /* Smooth fade and slide effect */
+            z-index: 1000; /* High z-index to be on top */
+            font-size: 0.9rem; /* Small font size */
+            font-weight: 500; /* Medium weight */
+            display: flex; /* Align icon and text */
+            align-items: center;
+            gap: 8px; /* Space between icon and text */
+            pointer-events: none; /* Not interactive */
+            max-width: 90%; /* Limit width */
+            text-align: center; /* Center text */
+        }
+
+        body.dark-mode .toast {
+            background-color: var(--dark-mode-primary); /* Dark mode toast background */
+            color: var(--dark-mode-text); /* Dark mode toast text */
+        }
+
+        .toast.show {
+            opacity: 1; /* Make visible */
+            transform: translateX(-50%) translateY(0); /* Slide into view */
+        }
+
+        .toast.error {
+            background-color: var(--danger); /* Red background for errors */
+        }
+        .toast.warning {
+            background-color: #ffc107; /* Yellow for warnings */
+            color: var(--text); /* Dark text for warnings */
+        }
+        body.dark-mode .toast.warning {
+             color: var(--dark-mode-text); /* Dark mode text for warnings */
+        }
+        .toast.success {
+            background-color: var(--positive); /* Green for success */
+        }
+        body.dark-mode .toast.success {
+            background-color: var(--positive); /* Keep positive color for success */
+        }
+
+        /* --- Export Buttons --- */
+        .export-buttons-container {
+            margin-top: 15px; /* Space above container */
+            display: flex;
+            flex-direction: column; /* Stack buttons vertically */
+            gap: 10px; /* Spacing between buttons */
+        }
+
+        .export-button {
+            background-color: var(--secondary); /* Use secondary color for export buttons */
+            color: white; /* White text */
+            padding: 12px 20px; /* Padding */
+        }
+
+        body.dark-mode .export-button {
+            background-color: var(--dark-mode-secondary); /* Dark mode secondary color */
+            color: var(--dark-mode-text); /* Dark mode text */
+        }
+
+        /* --- Message for No Data --- */
+        .no-data {
+            text-align: center; /* Center text */
+            color: var(--dark-gray); /* Dark gray text */
+            margin-top: 15px; /* Space above message */
+            padding: 20px;
+            font-size: 0.9rem; /* Small font size */
+            opacity: 0.7; /* Slightly transparent */
+            background-color: var(--light-gray); /* Light gray background */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            border: 1px dashed var(--medium-gray); /* Dashed border */
+        }
+
+        body.dark-mode .no-data {
+            color: var(--dark-mode-secondary); /* Dark mode secondary text */
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+            border-color: var(--dark-mode-border-color); /* Dark mode border */
+        }
+
+
+        /* --- Debt/Credit Tab Styles --- */
+        .debt-list-item {
+            background: var(--card-background); /* White background */
+            padding: 15px;
+            margin-bottom: 10px; /* Space below item */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            box-shadow: var(--shadow-sm); /* Small shadow */
+            position: relative;
+            border: 1px solid var(--medium-gray); /* Light gray border */
+        }
+
+        body.dark-mode .debt-list-item {
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+            border-color: var(--dark-mode-border-color); /* Dark mode border */
+        }
+
+        .debt-item-summary {
+            display: flex; /* Align items horizontally */
+            justify-content: space-between; /* Space out name and amount */
+            align-items: center; /* Vertically align */
+            width: 100%; /* Full width */
+            cursor: pointer; /* Indicate clickable */
+            margin-bottom: 10px; /* Space below summary */
+        }
+
+        .debt-item-summary.sticky-header { /* Added for sticky header effect */
+            position: sticky;
+            top: 0; /* Stick to the top of its container */
+            z-index: 10; /* Ensure it's above other content */
+            background-color: var(--card-background); /* Maintain background */
+            padding-top: 15px; /* Adjust padding if needed */
+            padding-bottom: 10px; /* Adjust padding */
+            margin-bottom: 10px; /* Maintain spacing */
+        }
+
+        body.dark-mode .debt-item-summary.sticky-header {
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+        }
+
+        .debt-item-summary .debt-name {
+            font-weight: 600; /* Semi-bold */
+            font-size: 1rem; /* Standard font size */
+            color: var(--primary); /* Primary color */
+        }
+
+        body.dark-mode .debt-item-summary .debt-name {
+            color: var(--dark-mode-primary); /* Dark mode primary color */
+        }
+
+        .debt-item-summary .debt-amount {
+            font-size: 1.1rem; /* Larger font size */
+            font-weight: 600; /* Semi-bold */
+        }
+
+        .debt-item-details-expanded {
+            display: none; /* Hide details by default */
+            flex-direction: column; /* Stack content vertically */
+            gap: 10px; /* Spacing between detail elements */
+            font-size: 0.9rem; /* Small font size */
+            color: var(--dark-gray); /* Dark gray text */
+            border-top: 1px solid var(--medium-gray); /* Top border divider */
+            padding-top: 10px; /* Padding above details */
+        }
+
+        body.dark-mode .debt-item-details-expanded {
+            color: var(--dark-mode-secondary); /* Dark mode secondary text */
+            border-top-color: var(--dark-mode-border-color); /* Dark mode border */
+        }
+
+        .debt-item-details-expanded.visible {
+            display: flex; /* Show details when visible */
+        }
+
+        .debt-actions {
+            display: flex; /* Arrange actions horizontally */
+            justify-content: flex-end; /* Align to the right */
+            gap: 8px; /* Spacing between action buttons */
+            margin-bottom: 10px; /* Space below actions */
+        }
+
+        .debt-details {
+            display: flex; /* Arrange details horizontally */
+            gap: 10px; /* Spacing between detail elements */
+            margin-bottom: 10px; /* Space below details */
+            align-items: center; /* Vertically align */
+            flex-wrap: wrap; /* Allow wrapping */
+        }
+
+        .debt-type {
+            font-weight: 500; /* Medium font weight */
+            color: var(--text-light); /* Light text color */
+            padding: 4px 8px; /* Padding */
+            background-color: var(--light-gray); /* Light gray background */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            font-size: 0.8rem; /* Small font size */
+        }
+
+        body.dark-mode .debt-type {
+            color: var(--dark-mode-secondary); /* Dark mode secondary text */
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+        }
+
+        .debt-note {
+            font-size: 0.8rem; /* Small font size */
+            color: var(--text-light); /* Light text color */
+        }
+
+        body.dark-mode .debt-note {
+            color: var(--dark-mode-secondary); /* Dark mode secondary text */
+        }
+
+        .debt-history-list {
+            margin-top: 10px;
+            padding-left: 10px; /* Indent history */
+            border-left: 2px solid var(--medium-gray); /* Left border for history */
+        }
+
+        body.dark-mode .debt-history-list {
+            border-left-color: var(--dark-mode-border-color); /* Dark mode border */
+        }
+
+        .debt-history-item {
+            display: flex; /* Align items horizontally */
+            justify-content: space-between; /* Space out text and actions */
+            align-items: center;
+            margin-bottom: 8px; /* Space below item */
+            font-size: 0.8rem; /* Small font size */
+            color: var(--dark-gray); /* Dark gray text */
+            padding-bottom: 8px; /* Padding below text */
+            border-bottom: 1px dashed var(--medium-gray); /* Dashed bottom border */
+            flex-wrap: wrap; /* Allow wrapping for actions */
+        }
+
+        body.dark-mode .debt-history-item {
+            color: var(--dark-mode-secondary); /* Dark mode secondary text */
+            border-bottom-color: var(--dark-mode-border-color); /* Dark mode border */
+        }
+
+        .debt-history-item:last-child {
+            border-bottom: none; /* No border for the last item */
+        }
+
+        .debt-history-item .negative {
+            color: var(--negative); /* Red for negative amounts */
+        }
+        .debt-history-item .positive {
+            color: var(--positive); /* Green for positive amounts */
+        }
+
+        .debt-history-item .debt-history-actions {
+             display: flex; /* Arrange buttons horizontally */
+             gap: 6px; /* Spacing between buttons */
+             margin-left: 8px; /* Space from the text */
+             flex-shrink: 0; /* Prevent shrinking */
+        }
+
+        /* --- Debt Summary Totals --- */
+        .debt-summary-totals {
+            background-color: var(--light-gray); /* Light gray background */
+            padding: 15px;
+            margin-top: 15px; /* Space above totals */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            display: flex;
+            flex-direction: column; /* Stack totals vertically */
+            gap: 10px; /* Spacing between totals */
+            font-weight: 600; /* Semi-bold */
+            font-size: 1rem; /* Standard font size */
+            border: 1px solid var(--medium-gray); /* Light gray border */
+        }
+
+        body.dark-mode .debt-summary-totals {
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+            border-color: var(--dark-mode-border-color); /* Dark mode border */
+        }
+
+        .debt-summary-totals .total-payable,
+        .debt-summary-totals .total-receivable {
+            display: flex; /* Align label and amount */
+            justify-content: space-between; /* Space them out */
+            align-items: center;
+        }
+
+        .debt-summary-totals .total-payable .amount {
+            color: var(--negative); /* Red for payable amount */
+        }
+
+        .debt-summary-totals .total-receivable .amount {
+            color: var(--positive); /* Green for receivable amount */
+        }
+
+        /* --- Debt Name Suggestions --- */
+        #debt-name-suggestions {
+            position: absolute; /* Position relative to parent */
+            width: calc(100% - 30px); /* Full width minus container padding */
+            background-color: white; /* White background */
+            border: 1px solid var(--medium-gray); /* Light gray border */
+            border-radius: var(--border-radius-default); /* Rounded corners */
+            box-shadow: var(--shadow-md); /* Medium shadow */
+            z-index: 50; /* Ensure it's above other elements */
+            display: none; /* Hidden by default */
+            max-height: 200px; /* Limit height */
+            overflow-y: auto; /* Add scrollbar if content exceeds height */
+        }
+
+        body.dark-mode #debt-name-suggestions {
+            background-color: var(--dark-mode-card-bg); /* Dark mode background */
+            border-color: var(--dark-mode-border-color); /* Dark mode border */
+            box-shadow: var(--shadow-md); /* Ensure shadow is visible on dark background */
+        }
+
+        .debt-suggestion-item {
+            padding: 10px 15px; /* Padding */
+            cursor: pointer; /* Indicate clickable */
+            transition: background-color var(--transition-fast); /* Smooth hover effect */
+            font-size: 0.9rem; /* Small font size */
+        }
+        .debt-suggestion-item:hover {
+            background-color: var(--light-gray); /* Light gray on hover */
+        }
+
+        body.dark-mode .debt-suggestion-item:hover {
+            background-color: var(--dark-mode-secondary); /* Dark mode hover */
+        }
+
+
+        /* --- Responsive Adjustments --- */
+        @media (min-width: 768px) {
+            .container {
+                max-width: 750px; /* Max width for larger screens */
+                padding: 20px;
+                margin: 20px auto; /* Center container with margin */
+            }
+
+            /* Tab layout adjustments for larger screens */
+            .tabs-container, .tabs-container-bottom {
+                display: flex; /* Use flexbox for tab layout */
+                justify-content: center; /* Center tabs */
+                flex-wrap: wrap; /* Allow tabs to wrap if needed */
+            }
+
+            .tab {
+                padding: 12px 15px; /* Larger padding */
+                flex: 0 0 auto; /* Prevent flex shrinking/growing */
+            }
+
+            /* Card layout adjustments */
+            .card-container {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); /* Wider minimum card width */
+            }
+
+            /* Filter section layout */
+            .filter-section {
+                flex-direction: row; /* Arrange filters horizontally */
+                flex-wrap: wrap; /* Allow wrapping */
+                align-items: center; /* Align items vertically */
+            }
+
+            .filter-section select,
+            .filter-section input {
+                flex: 1; /* Allow filters to grow */
+                min-width: 150px; /* Minimum width for filters */
+            }
+
+            .filter-section button {
+                width: auto; /* Auto width for buttons */
+                flex-shrink: 0; /* Prevent shrinking */
+            }
+
+            /* Button group layout */
+            .button-group {
+                flex-direction: row; /* Arrange buttons horizontally */
+            }
+
+            .button-group button {
+                width: auto; /* Auto width */
+                flex: 1; /* Allow buttons to share space */
+            }
+        }
+
+        /* --- Chart Styles --- */
+        .charts-container {
+            display: grid;
+            /* Using grid for layout: creates responsive columns */
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Charts will be at least 280px wide, adjust as needed */
+            gap: 20px; /* Space between charts */
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        .chart-wrapper {
+            background-color: var(--card-background); /* White background for the box frame */
+            padding: 15px; /* Padding inside the frame */
+            border-radius: var(--border-radius-default); /* Rounded corners for the frame */
+            box-shadow: var(--shadow-sm); /* Subtle shadow for depth */
+            border: 1px solid var(--medium-gray); /* Light gray border for the frame */
+            display: flex;
+            flex-direction: column; /* Stack title and chart vertically */
+            align-items: center; /* Center align items */
+            height: 300px; /* Fixed height for consistency */
+            position: relative; /* Essential for Chart.js to manage size */
+            justify-content: space-between; /* Pushes chart down slightly from title */
+        }
+
+        body.dark-mode .chart-wrapper {
+            background-color: var(--dark-mode-card-bg); /* Dark mode background for the frame */
+            border-color: var(--dark-mode-border-color); /* Dark mode border for the frame */
+        }
+
+        .chart-wrapper h3 {
+            margin-bottom: 15px; /* Space below the chart title */
+            color: var(--primary); /* Primary color for titles */
+            font-weight: 600; /* Semi-bold */
+            font-size: 1.2rem; /* Slightly larger font size for titles */
+            text-align: center; /* Center the title */
+            width: 100%; /* Ensure it takes full width for centering */
+        }
+
+        body.dark-mode .chart-wrapper h3 {
+            color: var(--dark-mode-primary); /* Dark mode primary color for titles */
+        }
+
+        /* Chart canvas sizing adjustment */
+        .chart-wrapper canvas {
+            width: 100% !important; /* Ensure canvas takes full width */
+            flex-grow: 1; /* Allow canvas to fill available space */
+            max-height: calc(100% - 60px); /* Adjust max height to account for title and padding */
+        }
+
+        /* Responsive adjustments for charts */
+        @media (max-width: 767px) {
+            .charts-container {
+                grid-template-columns: 1fr; /* Stack charts in a single column on smaller screens */
+            }
+            .chart-wrapper {
+                height: 250px; /* Slightly reduce height on mobile */
+            }
+            /* Ensure canvas also adjusts on mobile */
+            .chart-wrapper canvas {
+                max-height: calc(100% - 55px); /* Slightly adjust max-height for mobile wrapper */
+            }
+        }
+
+        /* --- Animation for smoother transitions --- */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .tab-content {
+            animation: fadeIn 0.3s ease-out; /* Apply fade-in animation to tab content */
+        }
+
+        /* --- Appearance Section in Opening Tab --- */
+        #settings-appearance-section {
+            margin-top: 20px; /* Space above this section */
+        }
+        #settings-appearance-section h3 {
+            margin-bottom: 15px;
+            color: var(--primary);
+            font-weight: 600;
+            font-size: 1.3rem;
+        }
+        body.dark-mode #settings-appearance-section h3 {
+            color: var(--dark-mode-primary);
+        }
+
+        #appearance-dark-mode-button {
+            background-color: var(--secondary); /* Secondary color for toggle button */
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: var(--border-radius-default);
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: background-color var(--transition-fast);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%; /* Make it full width like other buttons */
+            margin-bottom: 0; /* Remove margin-bottom for this specific button */
+        }
+        body.dark-mode #appearance-dark-mode-button { /* Corrected selector */
+            background-color: var(--dark-mode-secondary); /* Use correct dark mode secondary */
+        }
+        #appearance-dark-mode-button:active {
+            background-color: var(--button-hover-bg); /* Use the defined hover background */
+        }
+        body.dark-mode #appearance-dark-mode-button:active {
+             background-color: var(--dark-mode-button-hover-bg); /* Dark mode active color */
+        }
+
+        #appearance-language-button {
+            background-color: var(--secondary); /* Secondary color for toggle button */
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: var(--border-radius-default);
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: background-color var(--transition-fast);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%; /* Make it full width like other buttons */
+            margin-bottom: 0; /* Remove margin-bottom for this specific button */
+        }
+        body.dark-mode #appearance-language-button {
+            background-color: var(--dark-mode-secondary);
+        }
+        #appearance-language-button:active {
+            background-color: var(--button-hover-bg);
+        }
+        #settings-appearance-section button {
+            margin-bottom: 10px;
+        }
+        body.dark-mode #appearance-language-button:active {
+            background-color: var(--dark-mode-button-hover-bg);
+        }

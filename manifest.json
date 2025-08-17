@@ -1,12 +1,12 @@
 {
-  "name": "My Money Manager",
-  "short_name": "My Manager",
+  "name": "My Pay Agent",
+  "short_name": "MyPayAgent",
   "description": "Your trusted companion for seamless financial tracking",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#007bff",
-  "scope": "/",
+  "orientation": "portrait-primary",
   "icons": [
     {
       "src": "/icons/icon-48x48.png",
